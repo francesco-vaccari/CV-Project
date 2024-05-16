@@ -1,10 +1,12 @@
 import cv2
 import os
 
-# Path to the video file
-video_path = 'videos/out9safe_frame2.mp4'
-# Directory to save the extracted frames
-frames_dir = 'out9safe_frame2'
+
+
+video_path = 'videos/calibration_videos/top_left.mp4'
+frames_dir = 'videos/calibration_videos/top_left_frames' # folder where to save the frames
+
+
 
 # Create the directory if it does not exist
 if not os.path.exists(frames_dir):
@@ -20,7 +22,7 @@ if not cap.isOpened():
 
 frame_count = 0
 saved_frame_count = 0
-last_saved_frame = -15  # Initialize to ensure the first frame can be saved
+last_saved_frame = -10  # Initialize to ensure the first frame can be saved
 
 while True:
     ret, frame = cap.read()
@@ -33,8 +35,8 @@ while True:
     # Wait for a key press
     key = cv2.waitKey(1) & 0xFF
 
-    # If spacebar is pressed and at least 15 frames have passed since the last save
-    if key == ord(' ') and (frame_count - last_saved_frame >= 15):
+    # If spacebar is pressed and at least 10 frames have passed since the last save
+    if key == ord(' ') and (frame_count - last_saved_frame >= 10):
         frame_filename = os.path.join(frames_dir, f'frame_{saved_frame_count:04d}.jpg')
         cv2.imwrite(frame_filename, frame)
         saved_frame_count += 1

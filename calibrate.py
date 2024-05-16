@@ -1,6 +1,14 @@
 import cv2
 import numpy as np
 import glob
+from tqdm import tqdm
+
+
+
+frames_folder = 'videos/calibration_videos/top_left_frames'
+calibration_data_path = 'videos/calibration_videos/calibration_data_top_left.npz'
+
+
 
 # Define the dimensions of the checkerboard (number of inside corners per row and column)
 CHECKERBOARD = (6, 9)
@@ -18,12 +26,13 @@ objp = np.zeros((CHECKERBOARD[0] * CHECKERBOARD[1], 3), np.float32)
 objp[:, :2] = np.mgrid[0:CHECKERBOARD[0], 0:CHECKERBOARD[1]].T.reshape(-1, 2) * square_size
 
 # Extracting path of individual images stored in a given directory
-images = glob.glob('out9safe_frame2/*.jpg')
+images = glob.glob(frames_folder + '/*.jpg')
 
 # Variable to store the shape of the grayscale images
 gray_shape = None
 
-for fname in images:
+# Process each image with a progress bar
+for fname in tqdm(images, desc="Processing images"):
     img = cv2.imread(fname)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
@@ -52,7 +61,7 @@ if gray_shape is not None and len(objpoints) > 0 and len(imgpoints) > 0:
     ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray_shape, None, None)
 
     # Save the camera calibration results for later use
-    np.savez("calibration_data.npz", mtx=mtx, dist=dist, rvecs=rvecs, tvecs=tvecs)
-    print("Calibration successful. Results saved to calibration_data.npz")
+    np.savez(calibration_data_path, mtx=mtx, dist=dist, rvecs=rvecs, tvecs=tvecs)
+    print("Calibration successful. Results saved to " + calibration_data_path)
 else:
     print("Error: No valid checkerboard patterns found.")
