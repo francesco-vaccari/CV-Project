@@ -22,7 +22,6 @@ if not cap.isOpened():
 
 frame_count = 0
 saved_frame_count = 0
-last_saved_frame = -10  # Initialize to ensure the first frame can be saved
 
 while True:
     ret, frame = cap.read()
@@ -35,8 +34,8 @@ while True:
     # Wait for a key press
     key = cv2.waitKey(1) & 0xFF
 
-    # If spacebar is pressed and at least 10 frames have passed since the last save
-    if key == ord(' ') and (frame_count - last_saved_frame >= 10):
+    # If spacebar is pressed
+    if key == ord(' '):
         frame_filename = os.path.join(frames_dir, f'frame_{saved_frame_count:04d}.jpg')
         cv2.imwrite(frame_filename, frame)
         saved_frame_count += 1
