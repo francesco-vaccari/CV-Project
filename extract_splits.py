@@ -1,7 +1,7 @@
 import cv2
 import tqdm
 
-video = 'out9.mp4'
+video = 'videos/out9.mp4'
 
 cap = cv2.VideoCapture(video)
 split1 = 896
@@ -10,8 +10,8 @@ split3 = 4096 - 896
 
 # Create video writers for each frame
 # writer1 = cv2.VideoWriter('frame1.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 24, (split1, int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
-writer2 = cv2.VideoWriter('frame2.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 24, (split2 - split1, int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
-writer3 = cv2.VideoWriter('frame3.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 24, (split3 - split2, int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+writer2 = cv2.VideoWriter('videos/out9_left.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 24, (split2 - split1, int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+writer3 = cv2.VideoWriter('videos/out9_right.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 24, (split3 - split2, int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 # writer4 = cv2.VideoWriter('frame4.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 24, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) - split3, int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
