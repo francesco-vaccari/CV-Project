@@ -4,8 +4,8 @@ import numpy as np
 # Global variables
 paused = False
 rewind = False
-transformation1 = {'rotate': 0, 'scale': 1.0, 'tx': 0, 'ty': 0, 'perspective_1': 10000, 'perspective_2': 10000, 'perspective_3': 10000}
-transformation2 = {'rotate': 0, 'scale': 1.0, 'tx': 0, 'ty': 0, 'perspective_1': 10000, 'perspective_2': 10000, 'perspective_3': 10000}
+transformation1 = {'rotate': 0, 'scale': 1.0, 'tx': 0, 'ty': 0}
+transformation2 = {'rotate': 0, 'scale': 1.0, 'tx': 0, 'ty': 0}
 
 def on_change(x):
     pass
@@ -17,9 +17,6 @@ def apply_transformations(frame, n):
         scale = transformation1['scale']
         tx = transformation1['tx']
         ty = transformation1['ty']
-        perspective_1 = transformation1['perspective_1'] / 10000 if transformation1['perspective_1'] != 0 else 1
-        perspective_2 = transformation1['perspective_2'] / 10000 if transformation1['perspective_2'] != 0 else 1
-        perspective_3 = transformation1['perspective_3'] / 10000 if transformation1['perspective_3'] != 0 else 1
         
         # Get the image dimensions
         h, w = frame.shape[:2]
@@ -33,11 +30,6 @@ def apply_transformations(frame, n):
         # Apply rotation and then translation
         transformed_frame = cv2.warpAffine(frame, M_rotate, (w, h))
         transformed_frame = cv2.warpAffine(transformed_frame, M_translate, (w, h))
-
-        pts1 = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
-        pts2 = np.float32([[0, 0], [w/perspective_1, 0], [0, h/perspective_2], [w/perspective_3, h/perspective_3]])
-        M = cv2.getPerspectiveTransform(pts1, pts2)
-        transformed_frame = cv2.warpPerspective(transformed_frame, M, (w, h))
         
         return transformed_frame
     if n == 2:
@@ -61,11 +53,6 @@ def apply_transformations(frame, n):
         # Apply rotation and then translation
         transformed_frame = cv2.warpAffine(frame, M_rotate, (w, h))
         transformed_frame = cv2.warpAffine(transformed_frame, M_translate, (w, h))
-
-        pts1 = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
-        pts2 = np.float32([[0, 0], [w/perspective_1, 0], [0, h/perspective_2], [w/perspective_3, h/perspective_3]])
-        M = cv2.getPerspectiveTransform(pts1, pts2)
-        transformed_frame = cv2.warpPerspective(transformed_frame, M, (w, h))
         
         return transformed_frame
 
@@ -74,16 +61,10 @@ def update_transformation(val):
     transformation1['scale'] = cv2.getTrackbarPos('1:Scale', 'Video') / 100.0
     transformation1['tx'] = cv2.getTrackbarPos('1:Tx', 'Video')
     transformation1['ty'] = cv2.getTrackbarPos('1:Ty', 'Video')
-    transformation1['perspective_1'] = cv2.getTrackbarPos('1:Persp 1', 'Video')
-    transformation1['perspective_2'] = cv2.getTrackbarPos('1:Persp 2', 'Video')
-    transformation1['perspective_3'] = cv2.getTrackbarPos('1:Persp 3', 'Video')
     transformation2['rotate'] = cv2.getTrackbarPos('2:Rotate', 'Video')
     transformation2['scale'] = cv2.getTrackbarPos('2:Scale', 'Video') / 100.0
     transformation2['tx'] = cv2.getTrackbarPos('2:Tx', 'Video')
     transformation2['ty'] = cv2.getTrackbarPos('2:Ty', 'Video')
-    transformation2['perspective_1'] = cv2.getTrackbarPos('2:Persp 1', 'Video')
-    transformation2['perspective_2'] = cv2.getTrackbarPos('2:Persp 2', 'Video')
-    transformation2['perspective_3'] = cv2.getTrackbarPos('2:Persp 3', 'Video')
 
 # Load the videos
 cap1 = cv2.VideoCapture('frame2.mp4')
@@ -101,16 +82,10 @@ cv2.createTrackbar('1:Rotate', 'Video', 0, 360, on_change)
 cv2.createTrackbar('1:Scale', 'Video', 100, 200, on_change) # scale factor from 0.0 to 2.0
 cv2.createTrackbar('1:Tx', 'Video', 0, 1000, on_change) # translation x
 cv2.createTrackbar('1:Ty', 'Video', 0, 1000, on_change) # translation y
-cv2.createTrackbar('1:Persp 1', 'Video', 10000, 100000, on_change)
-cv2.createTrackbar('1:Persp 2', 'Video', 10000, 100000, on_change)
-cv2.createTrackbar('1:Persp 3', 'Video', 10000, 100000, on_change)
 cv2.createTrackbar('2:Rotate', 'Video', 0, 360, on_change)
 cv2.createTrackbar('2:Scale', 'Video', 100, 200, on_change) # scale factor from 0.0 to 2.0
 cv2.createTrackbar('2:Tx', 'Video', 0, 1000, on_change) # translation x
 cv2.createTrackbar('2:Ty', 'Video', 0, 1000, on_change) # translation y
-cv2.createTrackbar('2:Persp 1', 'Video', 10000, 100000, on_change)
-cv2.createTrackbar('2:Persp 2', 'Video', 10000, 100000, on_change)
-cv2.createTrackbar('2:Persp 3', 'Video', 10000, 100000, on_change)
 
 while True:
     if not paused:
