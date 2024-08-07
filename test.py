@@ -1,162 +1,180 @@
 import cv2
 import numpy as np
+import time
+import tqdm
 
-left_video_name = 'videos/out9_left_undistorted.mp4'
-right_video_name = 'videos/out9_right_undistorted.mp4'
+cap = cv2.VideoCapture('videos/out9_left.mp4')
+calibration_path = 'videos/out9safe_left_frames.npz'
+cap2 = cv2.VideoCapture('videos/out9_right.mp4')
+calibration_path2 = 'videos/out9safe_right_frames.npz'
 
-# Global variables
-paused = False
-rewind = False
-transformation1 = {'rotate': 0, 'scale': 1.0, 'tx': 0, 'ty': 0, 'perspective_1': 10000, 'perspective_2': 10000, 'perspective_3': 10000}
-transformation2 = {'rotate': 0, 'scale': 1.0, 'tx': 0, 'ty': 0, 'perspective_1': 10000, 'perspective_2': 10000, 'perspective_3': 10000}
+saving_path = 'videos/out9_combined.mp4'
 
-def on_change(x):
+precision = 10000
+
+
+
+def on_trackbar(val):
     pass
 
-def apply_transformations(frame, n):
-    # Get the transformation parameters
-    if n == 1:
-        angle = transformation1['rotate']
-        scale = transformation1['scale']
-        tx = transformation1['tx']
-        ty = transformation1['ty']
-        perspective_1 = transformation1['perspective_1'] / 10000 if transformation1['perspective_1'] != 0 else 1
-        perspective_2 = transformation1['perspective_2'] / 10000 if transformation1['perspective_2'] != 0 else 1
-        perspective_3 = transformation1['perspective_3'] / 10000 if transformation1['perspective_3'] != 0 else 1
-        
-        # Get the image dimensions
+calibration_data = np.load(calibration_path)
+k = calibration_data['mtx']
+d = calibration_data['dist']
+orig_k = k.copy()
+orig_d = d.copy()
+
+calibration_data2 = np.load(calibration_path2)
+k2 = calibration_data2['mtx']
+d2 = calibration_data2['dist']
+orig_k2 = k2.copy()
+orig_d2 = d2.copy()
+
+tx = 0
+ty = 0
+tx2 = 0
+ty2 = 0
+
+cv2.namedWindow('Trackbars', cv2.WINDOW_AUTOSIZE)
+
+cv2.createTrackbar('1:K1', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('1:K2', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('1:Cx', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('1:Cy', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('1:D1', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('1:D2', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('1:D3', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('1:D4', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('1:D5', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('1:Tx', 'Trackbars', 0, 1000, on_trackbar)
+cv2.createTrackbar('1:Ty', 'Trackbars', 0, 1000, on_trackbar)
+
+cv2.createTrackbar('2:K1', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('2:K2', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('2:Cx', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('2:Cy', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('2:D1', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('2:D2', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('2:D3', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('2:D4', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('2:D5', 'Trackbars', 0, 2*precision, on_trackbar)
+cv2.createTrackbar('2:Tx', 'Trackbars', 0, 1000, on_trackbar)
+cv2.createTrackbar('2:Ty', 'Trackbars', 0, 1000, on_trackbar)
+
+cv2.setTrackbarPos('1:K1', 'Trackbars', int(orig_k[0, 0]) + precision)
+cv2.setTrackbarPos('1:K2', 'Trackbars', int(orig_k[1, 1]) + precision)
+cv2.setTrackbarPos('1:Cx', 'Trackbars', int(orig_k[0, 2]) + precision)
+cv2.setTrackbarPos('1:Cy', 'Trackbars', int(orig_k[1, 2]) + precision)
+cv2.setTrackbarPos('1:D1', 'Trackbars', int(precision + orig_d[0, 0]*precision))
+cv2.setTrackbarPos('1:D2', 'Trackbars', int(precision + orig_d[0, 1]*precision))
+cv2.setTrackbarPos('1:D3', 'Trackbars', int(precision + orig_d[0, 2]*precision))
+cv2.setTrackbarPos('1:D4', 'Trackbars', int(precision + orig_d[0, 3]*precision))
+cv2.setTrackbarPos('1:D5', 'Trackbars', int(precision + orig_d[0, 4]*precision))
+cv2.setTrackbarPos('1:Tx', 'Trackbars', tx)
+cv2.setTrackbarPos('1:Ty', 'Trackbars', ty)
+
+cv2.setTrackbarPos('2:K1', 'Trackbars', int(orig_k2[0, 0]) + precision)
+cv2.setTrackbarPos('2:K2', 'Trackbars', int(orig_k2[1, 1]) + precision)
+cv2.setTrackbarPos('2:Cx', 'Trackbars', int(orig_k2[0, 2]) + precision)
+cv2.setTrackbarPos('2:Cy', 'Trackbars', int(orig_k2[1, 2]) + precision)
+cv2.setTrackbarPos('2:D1', 'Trackbars', int(precision + orig_d2[0, 0]*precision))
+cv2.setTrackbarPos('2:D2', 'Trackbars', int(precision + orig_d2[0, 1]*precision))
+cv2.setTrackbarPos('2:D3', 'Trackbars', int(precision + orig_d2[0, 2]*precision))
+cv2.setTrackbarPos('2:D4', 'Trackbars', int(precision + orig_d2[0, 3]*precision))
+cv2.setTrackbarPos('2:D5', 'Trackbars', int(precision + orig_d2[0, 4]*precision))
+cv2.setTrackbarPos('2:Tx', 'Trackbars', tx2)
+cv2.setTrackbarPos('2:Ty', 'Trackbars', ty2)
+
+
+def get_params():
+    global k, d, k2, d2, tx, ty, tx2, ty2
+    k[0, 0] = cv2.getTrackbarPos('1:K1', 'Trackbars') - precision
+    k[1, 1] = cv2.getTrackbarPos('1:K2', 'Trackbars') - precision
+    k[0, 2] = cv2.getTrackbarPos('1:Cx', 'Trackbars') - precision
+    k[1, 2] = cv2.getTrackbarPos('1:Cy', 'Trackbars') - precision
+    d[0, 0] = (cv2.getTrackbarPos('1:D1', 'Trackbars') - precision) / float(precision)
+    d[0, 1] = (cv2.getTrackbarPos('1:D2', 'Trackbars') - precision) / float(precision)
+    d[0, 2] = (cv2.getTrackbarPos('1:D3', 'Trackbars') - precision) / float(precision)
+    d[0, 3] = (cv2.getTrackbarPos('1:D4', 'Trackbars') - precision) / float(precision)
+    d[0, 4] = (cv2.getTrackbarPos('1:D5', 'Trackbars') - precision) / float(precision)
+    tx = cv2.getTrackbarPos('1:Tx', 'Trackbars')
+    ty = cv2.getTrackbarPos('1:Ty', 'Trackbars')
+    k2[0, 0] = cv2.getTrackbarPos('2:K1', 'Trackbars') - precision
+    k2[1, 1] = cv2.getTrackbarPos('2:K2', 'Trackbars') - precision
+    k2[0, 2] = cv2.getTrackbarPos('2:Cx', 'Trackbars') - precision
+    k2[1, 2] = cv2.getTrackbarPos('2:Cy', 'Trackbars') - precision
+    d2[0, 0] = (cv2.getTrackbarPos('2:D1', 'Trackbars') - precision) / float(precision)
+    d2[0, 1] = (cv2.getTrackbarPos('2:D2', 'Trackbars') - precision) / float(precision)
+    d2[0, 2] = (cv2.getTrackbarPos('2:D3', 'Trackbars') - precision) / float(precision)
+    d2[0, 3] = (cv2.getTrackbarPos('2:D4', 'Trackbars') - precision) / float(precision)
+    d2[0, 4] = (cv2.getTrackbarPos('2:D5', 'Trackbars') - precision) / float(precision)
+    tx2 = cv2.getTrackbarPos('2:Tx', 'Trackbars')
+    ty2 = cv2.getTrackbarPos('2:Ty', 'Trackbars')
+
+def transform(frame, k, d, tx, ty):
+        # frame = cv2.undistort(frame, k, d, None)
+
         h, w = frame.shape[:2]
-        
-        # Rotation matrix
-        M_rotate = cv2.getRotationMatrix2D((w/2, h/2), angle, scale)
-        
-        # Translation matrix
         M_translate = np.float32([[1, 0, tx], [0, 1, ty]])
+        frame = cv2.warpAffine(frame, M_translate, (w, h))
         
-        # Apply rotation and then translation
-        transformed_frame = cv2.warpAffine(frame, M_rotate, (w, h))
-        transformed_frame = cv2.warpAffine(transformed_frame, M_translate, (w, h))
+        return frame
 
-        pts1 = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
-        pts2 = np.float32([[0, 0], [w/perspective_1, 0], [0, h/perspective_2], [w/perspective_3, h/perspective_3]])
-        M = cv2.getPerspectiveTransform(pts1, pts2)
-        transformed_frame = cv2.warpPerspective(transformed_frame, M, (w, h))
-        
-        return transformed_frame
-    if n == 2:
-        angle = transformation2['rotate']
-        scale = transformation2['scale']
-        tx = transformation2['tx']
-        ty = transformation2['ty']
-        perspective_1 = transformation2['perspective_1'] / 10000 if transformation2['perspective_1'] != 0 else 1
-        perspective_2 = transformation2['perspective_2'] / 10000 if transformation2['perspective_2'] != 0 else 1
-        perspective_3 = transformation2['perspective_3'] / 10000 if transformation2['perspective_3'] != 0 else 1
-        
-        # Get the image dimensions
-        h, w = frame.shape[:2]
-        
-        # Rotation matrix
-        M_rotate = cv2.getRotationMatrix2D((w/2, h/2), angle, scale)
-        
-        # Translation matrix
-        M_translate = np.float32([[1, 0, tx], [0, 1, ty]])
-        
-        # Apply rotation and then translation
-        transformed_frame = cv2.warpAffine(frame, M_rotate, (w, h))
-        transformed_frame = cv2.warpAffine(transformed_frame, M_translate, (w, h))
+save = False
 
-        pts1 = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
-        pts2 = np.float32([[0, 0], [w/perspective_1, 0], [0, h/perspective_2], [w/perspective_3, h/perspective_3]])
-        M = cv2.getPerspectiveTransform(pts1, pts2)
-        transformed_frame = cv2.warpPerspective(transformed_frame, M, (w, h))
-        
-        return transformed_frame
-
-def update_transformation(val):
-    transformation1['rotate'] = cv2.getTrackbarPos('1:Rotate', 'Video')
-    transformation1['scale'] = cv2.getTrackbarPos('1:Scale', 'Video') / 100.0
-    transformation1['tx'] = cv2.getTrackbarPos('1:Tx', 'Video')
-    transformation1['ty'] = cv2.getTrackbarPos('1:Ty', 'Video')
-    transformation1['perspective_1'] = cv2.getTrackbarPos('1:Persp 1', 'Video')
-    transformation1['perspective_2'] = cv2.getTrackbarPos('1:Persp 2', 'Video')
-    transformation1['perspective_3'] = cv2.getTrackbarPos('1:Persp 3', 'Video')
-    transformation2['rotate'] = cv2.getTrackbarPos('2:Rotate', 'Video')
-    transformation2['scale'] = cv2.getTrackbarPos('2:Scale', 'Video') / 100.0
-    transformation2['tx'] = cv2.getTrackbarPos('2:Tx', 'Video')
-    transformation2['ty'] = cv2.getTrackbarPos('2:Ty', 'Video')
-    transformation2['perspective_1'] = cv2.getTrackbarPos('2:Persp 1', 'Video')
-    transformation2['perspective_2'] = cv2.getTrackbarPos('2:Persp 2', 'Video')
-    transformation2['perspective_3'] = cv2.getTrackbarPos('2:Persp 3', 'Video')
-
-# Load the videos
-cap1 = cv2.VideoCapture(left_video_name)
-cap2 = cv2.VideoCapture(right_video_name)
-
-if not cap1.isOpened() or not cap2.isOpened():
-    print("Error: Could not open one of the videos.")
-    exit()
-
-# Create a window
-cv2.namedWindow('Video')
-
-# Create trackbars for transformations
-cv2.createTrackbar('1:Rotate', 'Video', 0, 360, on_change)
-cv2.createTrackbar('1:Scale', 'Video', 100, 200, on_change) # scale factor from 0.0 to 2.0
-cv2.createTrackbar('1:Tx', 'Video', 0, 1000, on_change) # translation x
-cv2.createTrackbar('1:Ty', 'Video', 0, 1000, on_change) # translation y
-cv2.createTrackbar('1:Persp 1', 'Video', 10000, 100000, on_change)
-cv2.createTrackbar('1:Persp 2', 'Video', 10000, 100000, on_change)
-cv2.createTrackbar('1:Persp 3', 'Video', 10000, 100000, on_change)
-cv2.createTrackbar('2:Rotate', 'Video', 0, 360, on_change)
-cv2.createTrackbar('2:Scale', 'Video', 100, 200, on_change) # scale factor from 0.0 to 2.0
-cv2.createTrackbar('2:Tx', 'Video', 0, 1000, on_change) # translation x
-cv2.createTrackbar('2:Ty', 'Video', 0, 1000, on_change) # translation y
-cv2.createTrackbar('2:Persp 1', 'Video', 10000, 100000, on_change)
-cv2.createTrackbar('2:Persp 2', 'Video', 10000, 100000, on_change)
-cv2.createTrackbar('2:Persp 3', 'Video', 10000, 100000, on_change)
-
-while True:
-    if not paused:
-        ret1, frame1 = cap1.read()
-        ret2, frame2 = cap2.read()
-        
-        if not ret1 or not ret2:
-            print("Reached end of one of the videos, rewinding...")
-            cap1.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            cap2.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            ret1, frame1 = cap1.read()
-            ret2, frame2 = cap2.read()
-        
-        transformed_frame1 = apply_transformations(frame1, 1)
-        transformed_frame2 = apply_transformations(frame2, 2)
-        
-        combined_frame = np.hstack((transformed_frame1, transformed_frame2))
-        cv2.imshow('Video', combined_frame)
-    
-    # Wait for 10 ms
-    key = cv2.waitKey(10) & 0xFF
-    
-    # Check for user input
-    if key == ord('q'):
+while cap.isOpened():
+    ret, frame = cap.read()
+    ret2, frame2 = cap2.read()
+    if not ret or not ret2:
         break
-    elif key == ord('p') or key == ord(' '):
-        paused = not paused
-    elif key == ord('r'):
-        rewind = True
-        cap1.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        cap2.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        paused = False
-    elif key == ord('a'):
-        cap1.set(cv2.CAP_PROP_POS_FRAMES, cap1.get(cv2.CAP_PROP_POS_FRAMES) - 5 * cap1.get(cv2.CAP_PROP_FPS))
-        cap2.set(cv2.CAP_PROP_POS_FRAMES, cap2.get(cv2.CAP_PROP_POS_FRAMES) - 5 * cap2.get(cv2.CAP_PROP_FPS))
-    elif key == ord('d'):
-        cap1.set(cv2.CAP_PROP_POS_FRAMES, cap1.get(cv2.CAP_PROP_POS_FRAMES) + 5 * cap1.get(cv2.CAP_PROP_FPS))
-        cap2.set(cv2.CAP_PROP_POS_FRAMES, cap2.get(cv2.CAP_PROP_POS_FRAMES) + 5 * cap2.get(cv2.CAP_PROP_FPS))
-    
-    # Update transformations based on trackbar positions
-    update_transformation(0)
 
-# Release video capture and close windows
-cap1.release()
+    get_params()
+    
+    frame = transform(frame, k, d, tx, ty)
+    frame2 = transform(frame2, k2, d2, tx2, ty2)
+    
+    # cv2.imshow('Image', frame)
+    # cv2.imshow('Image2', frame2)
+    combined_frame = np.hstack((frame, frame2))
+    cv2.imshow('Image', combined_frame)
+    
+    # Wait for 1 ms and check for the 'q' key to quit
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+    if cv2.waitKey(1) & 0xFF == ord('s'):
+        save = True
+
+# Release the video capture and close all windows
+cap.release()
 cap2.release()
 cv2.destroyAllWindows()
+
+if save:
+    cap = cv2.VideoCapture('videos/out9_left.mp4')
+    cap2 = cv2.VideoCapture('videos/out9_right.mp4')
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(saving_path, fourcc, 24, (int(cap.get(3)), int(cap.get(4))))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    progress_bar = tqdm.tqdm(total=total_frames, desc='Saving Video', unit='frame')
+    
+    while cap.isOpened():
+        ret, frame = cap.read()
+        ret2, frame2 = cap2.read()
+        if not ret or not ret2:
+            break
+
+        get_params()
+
+        frame = transform(frame, k, d, tx, ty)
+        frame2 = transform(frame2, k2, d2, tx2, ty2)
+
+        combined_frame = np.hstack((frame, frame2))
+        out.write(combined_frame)
+        
+        progress_bar.update(1)
+
+    cap.release()
+    cap2.release()
+    out.release()
+    cv2.destroyAllWindows()
+    progress_bar.close()
+    print('Video saved to ' + saving_path)
