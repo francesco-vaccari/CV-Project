@@ -88,8 +88,8 @@ if save:
     cv2.destroyAllWindows()
 
     # Reopen the video files for processing
-    cap = cv2.VideoCapture('videos/out9_left.mp4')
-    cap2 = cv2.VideoCapture('videos/out9_right.mp4')
+    cap = cv2.VideoCapture(video_left)
+    cap2 = cv2.VideoCapture(video_right)
 
     # Get the video properties
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -118,7 +118,6 @@ if save:
         combined_frame = np.hstack((frame, frame2))
 
         out.write(combined_frame)
-        cv2.imshow('Combined', combined_frame)
 
     cap.release()
     cap2.release()
