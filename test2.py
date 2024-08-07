@@ -19,7 +19,7 @@ ty = 0
 tx2 = 0
 ty2 = 0
 
-cv2.namedWindow('Image', cv2.WINDOW_AUTOSIZE)
+cv2.namedWindow('Image', cv2.WINDOW_NORMAL)
 
 cv2.createTrackbar('1:Tx', 'Image', 0, 1000, on_trackbar)
 cv2.createTrackbar('1:Ty', 'Image', 0, 1000, on_trackbar)

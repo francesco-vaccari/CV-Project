@@ -34,7 +34,8 @@ ty = 0
 tx2 = 0
 ty2 = 0
 
-cv2.namedWindow('Trackbars', cv2.WINDOW_AUTOSIZE)
+cv2.namedWindow('Trackbars', cv2.WINDOW_NORMAL)
+cv2.namedWindow('Image', cv2.WINDOW_NORMAL)
 
 cv2.createTrackbar('1:K1', 'Trackbars', 0, 2*precision, on_trackbar)
 cv2.createTrackbar('1:K2', 'Trackbars', 0, 2*precision, on_trackbar)
