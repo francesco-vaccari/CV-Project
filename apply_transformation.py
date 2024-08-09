@@ -6,44 +6,13 @@ import os
 from tqdm import tqdm
 
 video = 'out9_combined.mp4'
-save_video = 'out9_transformed_1.mp4'
-
-folder = 'out9_2'
-n = 0
-
-points_file = f'points_{n}.pkl'
-old_points_file = f'old_points_{n}.pkl'
-trans_matrix_file = f'trans_matrix_{n}.pkl'
-triangle_file = f'triangles_{n}.pkl'
-old_triangle_file = f'old_triangles_{n}.pkl'
+save_video = 'out9_transformed.mp4'
+folder = 'output'
+max_index = 2
 
 
 
-
-save = False
-
-with open(os.path.join(folder, points_file), 'rb') as f:
-    points = pickle.load(f)
-    points = np.array(points, np.int32)
-
-with open(os.path.join(folder, old_points_file), 'rb') as f:
-    old_points = pickle.load(f)
-    old_points = np.array(old_points, np.int32)
-
-with open(os.path.join(folder, trans_matrix_file), 'rb') as f:
-    trans_matrix = pickle.load(f)
-    M = np.array(trans_matrix[0], np.float32)
-
-with open(os.path.join(folder, triangle_file), 'rb') as f:
-    triangles = pickle.load(f)
-    triangles = np.array(triangles, np.int32)[0]
-
-with open(os.path.join(folder, old_triangle_file), 'rb') as f:
-    old_triangles = pickle.load(f)
-    old_triangles = np.array(old_triangles, np.int32)[0]
-
-
-def get_triangle_masks(bgs):
+def get_triangle_masks(bgs, points, old_points, M, triangles, old_triangles):
     overlaps = []
     bgx = [(idx, bg) for idx, bg in enumerate(bgs)]
     masks = {idx: [] for idx, _ in bgx}
@@ -69,10 +38,10 @@ def get_triangle_masks(bgs):
 
     return masks, overlaps
 
-def blend(frame, bgs):
+def blend(frame, bgs, points, old_points, M, triangles, old_triangles):
     new_frame = np.zeros_like(frame)
     if len(bgs) > 1:  # if there are more than 1 background
-        masks, overlaps = get_triangle_masks(bgs)
+        masks, overlaps = get_triangle_masks(bgs, points, old_points, M, triangles, old_triangles)
 
         # draw non-overlapping part of the triangles
         for idx, mask in masks.items():
@@ -85,7 +54,7 @@ def blend(frame, bgs):
         if len(overlaps) == 1:  # if there is only 1 overlap, draw it
             new_frame = cv2.add(new_frame, overlaps[0])
         else:  # else get masks and draw non-overlapping part of the overlaps
-            masks, over = get_triangle_masks(overlaps)
+            masks, over = get_triangle_masks(overlaps, points, old_points, M, triangles, old_triangles)
             for idx, mask in masks.items():
                 triangle_crop = overlaps[idx]
                 for m in mask:
@@ -107,7 +76,7 @@ def blend(frame, bgs):
 
     return new_frame
 
-def apply_warp(frame):
+def apply_warp(frame, points, old_points, M, triangles, old_triangles):
     bg = np.zeros_like(frame)
     bgs = []
 
@@ -164,58 +133,86 @@ def apply_warp(frame):
         )
 
         bgs.append(current_bg)
-    bg = blend(frame, bgs)
+    bg = blend(frame, bgs, points, old_points, M, triangles, old_triangles)
     return bg
 
-cap = cv2.VideoCapture(video)
+def get_all(index):
+    points_file = f'points_{i}.pkl'
+    old_points_file = f'old_points_{i}.pkl'
+    trans_matrix_file = f'trans_matrix_{i}.pkl'
+    triangle_file = f'triangles_{i}.pkl'
+    old_triangle_file = f'old_triangles_{i}.pkl'
+
+    with open(os.path.join(folder, points_file), 'rb') as f:
+        points = pickle.load(f)
+        points = np.array(points, np.int32)
+
+    with open(os.path.join(folder, old_points_file), 'rb') as f:
+        old_points = pickle.load(f)
+        old_points = np.array(old_points, np.int32)
+
+    with open(os.path.join(folder, trans_matrix_file), 'rb') as f:
+        trans_matrix = pickle.load(f)
+        M = np.array(trans_matrix[0], np.float32)
+
+    with open(os.path.join(folder, triangle_file), 'rb') as f:
+        triangles = pickle.load(f)
+        triangles = np.array(triangles, np.int32)[0]
+
+    with open(os.path.join(folder, old_triangle_file), 'rb') as f:
+        old_triangles = pickle.load(f)
+        old_triangles = np.array(old_triangles, np.int32)[0]
+    
+    return points, old_points, M, triangles, old_triangles
+
+
+# cap = cv2.VideoCapture(video)
 
 # while cap.isOpened():
 #     ret, frame = cap.read()
 #     if not ret:
 #         break
 
-#     area = apply_warp(frame)
-#     mask = np.zeros_like(area)
-#     mask[np.where(area == 0)] = 255
-#     mask[np.where(area != 0)] = 0
-#     # apply mask to frame
-#     frame = cv2.bitwise_and(frame, mask)
-#     frame = cv2.bitwise_or(frame, area)
+#     for i in range(max_index+1):
+#         points, old_points, M, triangles, old_triangles = get_all(i)
+#         area = apply_warp(frame, points, old_points, M, triangles, old_triangles)
+#         mask = np.zeros_like(area)
+#         mask[np.where(area == 0)] = 255
+#         mask[np.where(area != 0)] = 0
+#         frame = cv2.bitwise_and(frame, mask)
+#         frame = cv2.bitwise_or(frame, area)
 
 #     cv2.imshow('Frame', frame)
 
 #     key = cv2.waitKey(1) & 0xFF
 #     if key == ord('q'):
 #         break
-#     if key == ord(' '):
-#         save = True
-#         break
 
 # cap.release()
 # cv2.destroyAllWindows()
 
-save=True
-if save:
-    print('Saving video...')
-    cap = cv2.VideoCapture(video)
-    writer = cv2.VideoWriter(save_video, cv2.VideoWriter_fourcc(*'mp4v'), 24, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    for _ in tqdm(range(total_frames)):
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        area = apply_warp(frame)
+print('Saving video...')
+cap = cv2.VideoCapture(video)
+writer = cv2.VideoWriter(save_video, cv2.VideoWriter_fourcc(*'mp4v'), 24, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+for _ in tqdm(range(total_frames)):
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    for i in range(max_index+1):
+        points, old_points, M, triangles, old_triangles = get_all(i)
+        area = apply_warp(frame, points, old_points, M, triangles, old_triangles)
         mask = np.zeros_like(area)
         mask[np.where(area == 0)] = 255
         mask[np.where(area != 0)] = 0
-        # apply mask to frame
         frame = cv2.bitwise_and(frame, mask)
         frame = cv2.bitwise_or(frame, area)
 
-        writer.write(frame)
+    writer.write(frame)
 
-    cap.release()
-    writer.release()
-    cv2.destroyAllWindows()
+cap.release()
+writer.release()
+cv2.destroyAllWindows()
