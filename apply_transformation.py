@@ -166,30 +166,31 @@ def get_all(index):
     return points, old_points, M, triangles, old_triangles
 
 
-# cap = cv2.VideoCapture(video)
+cap = cv2.VideoCapture(video)
+cv2.namedWindow('Frame', cv2.WINDOW_NORMAL)
 
-# while cap.isOpened():
-#     ret, frame = cap.read()
-#     if not ret:
-#         break
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
 
-#     for i in indexes:
-#         points, old_points, M, triangles, old_triangles = get_all(i)
-#         area = apply_warp(frame, points, old_points, M, triangles, old_triangles)
-#         mask = np.zeros_like(area)
-#         mask[np.where(area == 0)] = 255
-#         mask[np.where(area != 0)] = 0
-#         frame = cv2.bitwise_and(frame, mask)
-#         frame = cv2.bitwise_or(frame, area)
+    for i in indexes:
+        points, old_points, M, triangles, old_triangles = get_all(i)
+        area = apply_warp(frame, points, old_points, M, triangles, old_triangles)
+        mask = np.zeros_like(area)
+        mask[np.where(area == 0)] = 255
+        mask[np.where(area != 0)] = 0
+        frame = cv2.bitwise_and(frame, mask)
+        frame = cv2.bitwise_or(frame, area)
 
-#     cv2.imshow('Frame', frame)
+    cv2.imshow('Frame', frame)
 
-#     key = cv2.waitKey(1) & 0xFF
-#     if key == ord('q'):
-#         break
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord('q'):
+        break
 
-# cap.release()
-# cv2.destroyAllWindows()
+cap.release()
+cv2.destroyAllWindows()
 
 
 print('Saving video...')
