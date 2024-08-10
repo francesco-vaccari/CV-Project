@@ -77,14 +77,14 @@ while cap.isOpened():
         save = True
         break
 
-cap.release()
-cap2.release()
-cv2.destroyAllWindows()
-
 tx = cv2.getTrackbarPos('1:Tx', 'Image')
 ty = cv2.getTrackbarPos('1:Ty', 'Image')
 tx2 = cv2.getTrackbarPos('2:Tx', 'Image')
 ty2 = cv2.getTrackbarPos('2:Ty', 'Image')
+
+cap.release()
+cap2.release()
+cv2.destroyAllWindows()
 
 if save:
     print('Saving video...')
