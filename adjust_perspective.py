@@ -5,7 +5,7 @@ video = 'videos/out9_combined.mp4'
 save_video = 'videos/out9_adjusted.mp4'
 
 cap = cv2.VideoCapture(video)
-writer = cv2.VideoWriter(save_video, cv2.VideoWriter_fourcc(*'XVID'), cap.get(cv2.CAP_PROP_FPS), (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+writer = cv2.VideoWriter(save_video, cv2.VideoWriter_fourcc(*'mp4v'), cap.get(cv2.CAP_PROP_FPS), (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
 alpha_src = 1.
 alpha_dst = 1.
