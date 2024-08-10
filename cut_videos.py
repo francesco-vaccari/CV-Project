@@ -12,7 +12,7 @@ cap = cv2.VideoCapture(video)
 fps = cap.get(cv2.CAP_PROP_FPS)
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for mp4
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
 out = cv2.VideoWriter(save_video, fourcc, fps, (width, height))
 

@@ -1,9 +1,10 @@
 import cv2
 import numpy as np
+import tqdm
 
-video_left = 'videos/out9_left.mp4'
-video_right = 'videos/out9_right.mp4'
-saving_path = 'videos/out9_combined.mp4'
+video_left = 'videos/out9_cut_left.mp4'
+video_right = 'videos/out9_cut_right.mp4'
+saving_path = 'videos/out9_cut_combined.mp4'
 
 
 
@@ -60,8 +61,8 @@ while cap.isOpened():
     combined_frame = np.hstack((frame, frame2))
     cv2.imshow('Image', combined_frame)
     
-    line = cv2.line(combined_frame, (0, int(combined_frame.shape[0]/2)), (combined_frame.shape[1], int(combined_frame.shape[0]/2)), (0, 255, 0), 2)
-    cv2.imshow('Image', line)
+    # line = cv2.line(combined_frame, (0, int(combined_frame.shape[0]/2)), (combined_frame.shape[1], int(combined_frame.shape[0]/2)), (0, 255, 0), 2)
+    # cv2.imshow('Image', line)
 
     key = cv2.waitKey(1) & 0xFF
     if key == ord('a'):
@@ -76,6 +77,10 @@ while cap.isOpened():
         save = True
         break
 
+cap.release()
+cap2.release()
+cv2.destroyAllWindows()
+
 tx = cv2.getTrackbarPos('1:Tx', 'Image')
 ty = cv2.getTrackbarPos('1:Ty', 'Image')
 tx2 = cv2.getTrackbarPos('2:Tx', 'Image')
@@ -83,9 +88,6 @@ ty2 = cv2.getTrackbarPos('2:Ty', 'Image')
 
 if save:
     print('Saving video...')
-    cap.release()
-    cap2.release()
-    cv2.destroyAllWindows()
 
     # Reopen the video files for processing
     cap = cv2.VideoCapture(video_left)
@@ -101,6 +103,9 @@ if save:
     # Create VideoWriter object
     out = cv2.VideoWriter(saving_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width + width2, height))
 
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    progress_bar = tqdm.tqdm(total=total_frames, desc='Saving video')
+
     while cap.isOpened():
         ret, frame = cap.read()
         ret2, frame2 = cap2.read()
@@ -110,7 +115,6 @@ if save:
         frame_count = cap.get(cv2.CAP_PROP_POS_FRAMES)
         total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
         progress = int((frame_count / total_frames) * 100)
-        print(f'\rProgress: {progress}%', end='')
         
         frame = transform(frame, tx, ty)
         frame2 = transform(frame2, tx2, ty2)
@@ -118,11 +122,11 @@ if save:
         combined_frame = np.hstack((frame, frame2))
 
         out.write(combined_frame)
+        
+        progress_bar.update(1)
 
     cap.release()
     cap2.release()
     out.release()
 
 cv2.destroyAllWindows()
-
-#tx 229, ty 6, tx2 0, ty2 0
