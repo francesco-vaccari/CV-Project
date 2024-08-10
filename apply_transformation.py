@@ -8,7 +8,7 @@ from tqdm import tqdm
 video = 'out9_combined.mp4'
 save_video = 'out9_transformed.mp4'
 folder = 'output'
-max_index = 2
+indexes = [1, 2, 3, 4]
 
 
 
@@ -137,11 +137,11 @@ def apply_warp(frame, points, old_points, M, triangles, old_triangles):
     return bg
 
 def get_all(index):
-    points_file = f'points_{i}.pkl'
-    old_points_file = f'old_points_{i}.pkl'
-    trans_matrix_file = f'trans_matrix_{i}.pkl'
-    triangle_file = f'triangles_{i}.pkl'
-    old_triangle_file = f'old_triangles_{i}.pkl'
+    points_file = f'points_{index}.pkl'
+    old_points_file = f'old_points_{index}.pkl'
+    trans_matrix_file = f'trans_matrix_{index}.pkl'
+    triangle_file = f'triangles_{index}.pkl'
+    old_triangle_file = f'old_triangles_{index}.pkl'
 
     with open(os.path.join(folder, points_file), 'rb') as f:
         points = pickle.load(f)
@@ -173,7 +173,7 @@ def get_all(index):
 #     if not ret:
 #         break
 
-#     for i in range(max_index+1):
+#     for i in indexes:
 #         points, old_points, M, triangles, old_triangles = get_all(i)
 #         area = apply_warp(frame, points, old_points, M, triangles, old_triangles)
 #         mask = np.zeros_like(area)
@@ -202,7 +202,7 @@ for _ in tqdm(range(total_frames)):
     if not ret:
         break
 
-    for i in range(max_index+1):
+    for i in indexes:
         points, old_points, M, triangles, old_triangles = get_all(i)
         area = apply_warp(frame, points, old_points, M, triangles, old_triangles)
         mask = np.zeros_like(area)
