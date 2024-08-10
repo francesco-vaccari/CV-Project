@@ -21,19 +21,19 @@ writer3 = cv2.VideoWriter(save_video3, cv2.VideoWriter_fourcc(*'mp4v'), cap3.get
 
 # save only after 5 minutes
 frame_rate = int(cap.get(cv2.CAP_PROP_FPS))
-start_frame = 5 * 60 * frame_rate
+start_frame = 30 * frame_rate
+end_frame = 240 * frame_rate
 
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
 
-    if cap.get(cv2.CAP_PROP_POS_FRAMES) >= start_frame:
-        print(f'Saving video... {int(cap.get(cv2.CAP_PROP_POS_FRAMES) / cap.get(cv2.CAP_PROP_FRAME_COUNT) * 100)}%', end='\r')
+    if cap.get(cv2.CAP_PROP_POS_FRAMES) >= start_frame and cap.get(cv2.CAP_PROP_POS_FRAMES) <= end_frame:
+        print(f'Saving video {video} from frame {start_frame} to frame {end_frame}, Progress: {cap.get(cv2.CAP_PROP_POS_FRAMES)}/{end_frame}', end='\r')
         writer.write(frame)
-    else:
-        print(f'Skipping frame {cap.get(cv2.CAP_PROP_POS_FRAMES)}/{start_frame}', end='\r')
-        continue
+    if cap.get(cv2.CAP_PROP_POS_FRAMES) > end_frame:
+        break
 
 cap.release()
 writer.release()
@@ -43,12 +43,11 @@ while cap2.isOpened():
     if not ret:
         break
 
-    if cap2.get(cv2.CAP_PROP_POS_FRAMES) >= start_frame:
-        print(f'Saving video... {int(cap2.get(cv2.CAP_PROP_POS_FRAMES) / cap2.get(cv2.CAP_PROP_FRAME_COUNT) * 100)}%', end='\r')
+    if cap2.get(cv2.CAP_PROP_POS_FRAMES) >= start_frame and cap2.get(cv2.CAP_PROP_POS_FRAMES) <= end_frame:
+        print(f'Saving video {video2} from frame {start_frame} to frame {end_frame}, Progress: {cap2.get(cv2.CAP_PROP_POS_FRAMES)}/{end_frame}', end='\r')
         writer2.write(frame)
-    else:
-        print(f'Skipping frame {cap2.get(cv2.CAP_PROP_POS_FRAMES)}/{start_frame}', end='\r')
-        continue
+    if cap2.get(cv2.CAP_PROP_POS_FRAMES) > end_frame:
+        break
 
 cap2.release()
 writer2.release()
@@ -58,12 +57,11 @@ while cap3.isOpened():
     if not ret:
         break
 
-    if cap3.get(cv2.CAP_PROP_POS_FRAMES) >= start_frame:
-        print(f'Saving video... {int(cap3.get(cv2.CAP_PROP_POS_FRAMES) / cap3.get(cv2.CAP_PROP_FRAME_COUNT) * 100)}%', end='\r')
+    if cap3.get(cv2.CAP_PROP_POS_FRAMES) >= start_frame and cap3.get(cv2.CAP_PROP_POS_FRAMES) <= end_frame:
+        print(f'Saving video {video3} from frame {start_frame} to frame {end_frame}, Progress: {cap3.get(cv2.CAP_PROP_POS_FRAMES)}/{end_frame}', end='\r')
         writer3.write(frame)
-    else:
-        print(f'Skipping frame {cap3.get(cv2.CAP_PROP_POS_FRAMES)}/{start_frame}', end='\r')
-        continue
+    if cap3.get(cv2.CAP_PROP_POS_FRAMES) > end_frame:
+        break
 
 cap3.release()
 writer3.release()
