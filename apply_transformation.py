@@ -195,7 +195,7 @@ cv2.destroyAllWindows()
 
 print('Saving video...')
 cap = cv2.VideoCapture(video)
-writer = cv2.VideoWriter(save_video, cv2.VideoWriter_fourcc(*'mp4v'), 24, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+writer = cv2.VideoWriter(save_video, cv2.VideoWriter_fourcc(*'mp4v'), cap.get(cv2.CAP_PROP_FPS), (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
 for _ in tqdm(range(total_frames)):

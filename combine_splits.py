@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 import tqdm
 
-video_left = 'videos/out9_cut_left.mp4'
-video_right = 'videos/out9_cut_right.mp4'
-saving_path = 'videos/out9_cut_combined.mp4'
+video_left = 'videos/out10_cut_left.mp4'
+video_right = 'videos/out10_cut_right_adjusted.mp4'
+saving_path = 'videos/out10_cut_combined.mp4'
 
 
 
