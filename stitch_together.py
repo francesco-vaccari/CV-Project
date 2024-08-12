@@ -25,6 +25,8 @@ top_merging_line = int(top_video.get(cv2.CAP_PROP_FRAME_HEIGHT) + pad // 2)
 bottom_merging_line = int(top_video.get(cv2.CAP_PROP_FRAME_HEIGHT) + center_video.get(cv2.CAP_PROP_FRAME_HEIGHT) + pad // 2)
 show_merging_lines = True
 
+mult = 1
+
 cv2.namedWindow('Image', cv2.WINDOW_NORMAL)
 
 def copy_frames(top, top_start, center, center_start, bottom, bottom_start):
@@ -107,47 +109,50 @@ while top_video.isOpened():
 
     if key == ord('w'):
         # translate up
-        params[focus]['y'] -= 1
+        params[focus]['y'] -= 1 * mult
     if key == ord('a'):
         # translate left
-        params[focus]['x'] -= 1
+        params[focus]['x'] -= 1 * mult
     if key == ord('s'):
         # translate down
-        params[focus]['y'] += 1
+        params[focus]['y'] += 1 * mult
     if key == ord('d'):
         # translate right
-        params[focus]['x'] += 1
+        params[focus]['x'] += 1 * mult
     if key == ord('q'):
         # rotate leftw
-        params[focus]['r'] += 1
+        params[focus]['r'] += 1 * mult
     if key == ord('e'):
         # rotate right
-        params[focus]['r'] -= 1
+        params[focus]['r'] -= 1 * mult
     if key == ord('z'):
         # scale up
-        params[focus]['s'] += 0.2
+        params[focus]['s'] += 0.2 * mult
     if key == ord('x'):
         # scale down
-        params[focus]['s'] -= 0.2
+        params[focus]['s'] -= 0.2 * mult
     if key == ord('f'):
         # switch focus to next video
         focus = (focus + 1) % 3
     if key == ord('u'):
         # move up top merging line
-        top_merging_line -= 1
+        top_merging_line -= 1 * mult
     if key == ord('j'):
         # move down top merging line
-        top_merging_line += 1
+        top_merging_line += 1 * mult
     if key == ord('i'):
         # move up bottom merging line
-        bottom_merging_line -= 1
+        bottom_merging_line -= 1 * mult
     if key == ord('k'):
         # move down bottom merging line
-        bottom_merging_line += 1
+        bottom_merging_line += 1 * mult
     if key == ord('m'):
         # show/hide merging lines
         show_merging_lines = not show_merging_lines
-    
+    if key == ord('+'):
+        mult *= 2
+    if key == ord('-'):
+        mult /= 2
     if key == ord(' '):
         break
 
