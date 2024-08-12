@@ -1,10 +1,14 @@
 import cv2
 import numpy as np
+import tqdm
 
-top = "videos/out9_combined.mp4"
-center = "videos/out10_combined.mp4"
-bottom = "videos/out11_combined.mp4"
+top = "videos/out9_transformed.mp4"
+center = "videos/out10_transformed_fps_adjusted.mp4"
+bottom = "videos/out11_transformed.mp4"
 
+save_video = "videos/combined.mp4"
+
+pad = 700
 
 
 
@@ -12,104 +16,246 @@ top_video = cv2.VideoCapture(top)
 center_video = cv2.VideoCapture(center)
 bottom_video = cv2.VideoCapture(bottom)
 
-params = {'r1': 0, 'r2': 0, 'r3': 0, 's1': 100, 's2': 100, 's3': 100, 'x1': 0, 'y1': 0, 'x2': 0, 'y2': 0, 'x3': 0, 'y3': 0}
-mult = 1
+params1 = {'r': 0, 's': 100, 'x': 0, 'y': 0}
+params2 = {'r': 0, 's': 100, 'x': 0, 'y': 0}
+params3 = {'r': 0, 's': 100, 'x': 0, 'y': 0}
+params = [params1, params2, params3]
+focus = 0
+order = 1
 
 cv2.namedWindow('Image', cv2.WINDOW_NORMAL)
-# cv2.namedWindow('TrackBars', cv2.WINDOW_NORMAL)
 
-# cv2.createTrackbar('Top rotation', 'TrackBars', 0, 360, lambda x: None)
-# cv2.createTrackbar('Center rotation', 'TrackBars', 0, 360, lambda x: None)
-# cv2.createTrackbar('Bottom rotation', 'TrackBars', 0, 360, lambda x: None)
-# cv2.createTrackbar('Top scale', 'TrackBars', 100, 200, lambda x: None)
-# cv2.createTrackbar('Center scale', 'TrackBars', 100, 200, lambda x: None)
-# cv2.createTrackbar('Bottom scale', 'TrackBars', 100, 200, lambda x: None)
-# cv2.createTrackbar('Top x', 'TrackBars', 0, 1000, lambda x: None)
-# cv2.createTrackbar('Top y', 'TrackBars', 0, 1000, lambda x: None)
-# cv2.createTrackbar('Center x', 'TrackBars', 0, 1000, lambda x: None)
-# cv2.createTrackbar('Center y', 'TrackBars', 0, 1000, lambda x: None)
-# cv2.createTrackbar('Bottom x', 'TrackBars', 0, 1000, lambda x: None)
-# cv2.createTrackbar('Bottom y', 'TrackBars', 0, 1000, lambda x: None)
+def draw_on_canvas(canvas, start_x, start_y, end_x, end_y, frame):
+    for i in range(start_y, end_y):
+        for j in range(start_x, end_x):
+            if np.all(canvas[i][j] == 0):
+                canvas[i][j] = frame[i - start_y][j - start_x]
+    return canvas
 
-# def update_params():
-#     params['r1'] = cv2.getTrackbarPos('Top rotation', 'TrackBars')
-#     params['r2'] = cv2.getTrackbarPos('Center rotation', 'TrackBars')
-#     params['r3'] = cv2.getTrackbarPos('Bottom rotation', 'TrackBars')
-#     params['s1'] = cv2.getTrackbarPos('Top scale', 'TrackBars')
-#     params['s2'] = cv2.getTrackbarPos('Center scale', 'TrackBars')
-#     params['s3'] = cv2.getTrackbarPos('Bottom scale', 'TrackBars')
-#     params['x1'] = cv2.getTrackbarPos('Top x', 'TrackBars')
-#     params['y1'] = cv2.getTrackbarPos('Top y', 'TrackBars')
-#     params['x2'] = cv2.getTrackbarPos('Center x', 'TrackBars')
-#     params['y2'] = cv2.getTrackbarPos('Center y', 'TrackBars')
-#     params['x3'] = cv2.getTrackbarPos('Bottom x', 'TrackBars')
-#     params['y3'] = cv2.getTrackbarPos('Bottom y', 'TrackBars')
+def copy_frames2(canvas, top, top_start, center, center_start, bottom, bottom_start):
+    if order == 1 or order == 2:
+        canvas = draw_on_canvas(canvas, top_start[0], top_start[1], top_start[0] + top.shape[1], top_start[1] + top.shape[0], top)
+        if order == 1:
+            canvas = draw_on_canvas(canvas, center_start[0], center_start[1], center_start[0] + center.shape[1], center_start[1] + center.shape[0], center)
+            canvas = draw_on_canvas(canvas, bottom_start[0], bottom_start[1], bottom_start[0] + bottom.shape[1], bottom_start[1] + bottom.shape[0], bottom)
+        if order == 2:
+            canvas = draw_on_canvas(canvas, bottom_start[0], bottom_start[1], bottom_start[0] + bottom.shape[1], bottom_start[1] + bottom.shape[0], bottom)
+            canvas = draw_on_canvas(canvas, center_start[0], center_start[1], center_start[0] + center.shape[1], center_start[1] + center.shape[0], center)
+    if order == 3 or order == 4:
+        canvas = draw_on_canvas(canvas, center_start[0], center_start[1], center_start[0] + center.shape[1], center_start[1] + center.shape[0], center)
+        if order == 3:
+            canvas = draw_on_canvas(canvas, top_start[0], top_start[1], top_start[0] + top.shape[1], top_start[1] + top.shape[0], top)
+            canvas = draw_on_canvas(canvas, bottom_start[0], bottom_start[1], bottom_start[0] + bottom.shape[1], bottom_start[1] + bottom.shape[0], bottom)
+        if order == 4:
+            canvas = draw_on_canvas(canvas, bottom_start[0], bottom_start[1], bottom_start[0] + bottom.shape[1], bottom_start[1] + bottom.shape[0], bottom)
+            canvas = draw_on_canvas(canvas, top_start[0], top_start[1], top_start[0] + top.shape[1], top_start[1] + top.shape[0], top)
+    if order == 5 or order == 6:
+        canvas = draw_on_canvas(canvas, bottom_start[0], bottom_start[1], bottom_start[0] + bottom.shape[1], bottom_start[1] + bottom.shape[0], bottom)
+        if order == 5:
+            canvas = draw_on_canvas(canvas, top_start[0], top_start[1], top_start[0] + top.shape[1], top_start[1] + top.shape[0], top)
+            canvas = draw_on_canvas(canvas, center_start[0], center_start[1], center_start[0] + center.shape[1], center_start[1] + center.shape[0], center)
+        if order == 6:
+            canvas = draw_on_canvas(canvas, center_start[0], center_start[1], center_start[0] + center.shape[1], center_start[1] + center.shape[0], center)
+            canvas = draw_on_canvas(canvas, top_start[0], top_start[1], top_start[0] + top.shape[1], top_start[1] + top.shape[0], top)
 
+    return canvas
 
-def apply_transformation(top, center, bottom):
+def copy_frames(canvas, top, top_start, center, center_start, bottom, bottom_start):
+    if order == 1 or order == 2:
+        canvas[top_start[1]:top_start[1] + top.shape[0], top_start[0]:top_start[0] + top.shape[1]] = top
+        if order == 1:
+            canvas[center_start[1]:center_start[1] + center.shape[0], center_start[0]:center_start[0] + center.shape[1]] = center
+            canvas[bottom_start[1]:bottom_start[1] + bottom.shape[0], bottom_start[0]:bottom_start[0] + bottom.shape[1]] = bottom
+        if order == 2:
+            canvas[bottom_start[1]:bottom_start[1] + bottom.shape[0], bottom_start[0]:bottom_start[0] + bottom.shape[1]] = bottom
+            canvas[center_start[1]:center_start[1] + center.shape[0], center_start[0]:center_start[0] + center.shape[1]] = center
+    if order == 3 or order == 4:
+        canvas[center_start[1]:center_start[1] + center.shape[0], center_start[0]:center_start[0] + center.shape[1]] = center
+        if order == 3:
+            canvas[top_start[1]:top_start[1] + top.shape[0], top_start[0]:top_start[0] + top.shape[1]] = top
+            canvas[bottom_start[1]:bottom_start[1] + bottom.shape[0], bottom_start[0]:bottom_start[0] + bottom.shape[1]] = bottom
+        if order == 4:
+            canvas[bottom_start[1]:bottom_start[1] + bottom.shape[0], bottom_start[0]:bottom_start[0] + bottom.shape[1]] = bottom
+            canvas[top_start[1]:top_start[1] + top.shape[0], top_start[0]:top_start[0] + top.shape[1]] = top
+    if order == 5 or order == 6:
+        canvas[bottom_start[1]:bottom_start[1] + bottom.shape[0], bottom_start[0]:bottom_start[0] + bottom.shape[1]] = bottom
+        if order == 5:
+            canvas[top_start[1]:top_start[1] + top.shape[0], top_start[0]:top_start[0] + top.shape[1]] = top
+            canvas[center_start[1]:center_start[1] + center.shape[0], center_start[0]:center_start[0] + center.shape[1]] = center
+        if order == 6:
+            canvas[center_start[1]:center_start[1] + center.shape[0], center_start[0]:center_start[0] + center.shape[1]] = center
+            canvas[top_start[1]:top_start[1] + top.shape[0], top_start[0]:top_start[0] + top.shape[1]] = top
 
-    top = cv2.resize(top, (top.shape[1] * params['s1'] // 100, top.shape[0] * params['s1'] // 100))
-    top = cv2.warpAffine(top, cv2.getRotationMatrix2D((top.shape[1] // 2, top.shape[0] // 2), params['r1'], 1), (top.shape[1], top.shape[0]))
-    top = cv2.warpAffine(top, np.float32([[1, 0, params['x1']], [0, 1, params['y1']]]), (top.shape[1], top.shape[0]))
+    return canvas
 
-    center = cv2.resize(center, (center.shape[1] * params['s2'] // 100, center.shape[0] * params['s2'] // 100))
-    center = cv2.warpAffine(center, cv2.getRotationMatrix2D((center.shape[1] // 2, center.shape[0] // 2), params['r2'], 1), (center.shape[1], center.shape[0]))
-    center = cv2.warpAffine(center, np.float32([[1, 0, params['x2']], [0, 1, params['y2']]]), (center.shape[1], center.shape[0]))
-
-    bottom = cv2.resize(bottom, (bottom.shape[1] * params['s3'] // 100, bottom.shape[0] * params['s3'] // 100))
-    bottom = cv2.warpAffine(bottom, cv2.getRotationMatrix2D((bottom.shape[1] // 2, bottom.shape[0] // 2), params['r3'], 1), (bottom.shape[1], bottom.shape[0]))
-    bottom = cv2.warpAffine(bottom, np.float32([[1, 0, params['x3']], [0, 1, params['y3']]]), (bottom.shape[1], bottom.shape[0]))
-
-    return top, center, bottom
-
-
-while True:
+while top_video.isOpened():
     ret1, top = top_video.read()
     ret2, center = center_video.read()
     ret3, bottom = bottom_video.read()
 
     if not ret1 or not ret2 or not ret3:
         break
-        
+
     top = cv2.rotate(top, cv2.ROTATE_180)
 
-    top, center, bottom = apply_transformation(top, center, bottom)
+    canvas = np.zeros((top.shape[0] + center.shape[0] + bottom.shape[0] + pad, top.shape[1] + pad, 3), dtype=np.uint8)
 
-    # pad frames to make them have same width
-    max_width = max(top.shape[1], center.shape[1], bottom.shape[1])
-    top = cv2.copyMakeBorder(top, 0, 0, 0, max_width - top.shape[1], cv2.BORDER_CONSTANT, value=(255, 255, 255))
-    center = cv2.copyMakeBorder(center, 0, 0, 0, max_width - center.shape[1], cv2.BORDER_CONSTANT, value=(255, 255, 255))
-    bottom = cv2.copyMakeBorder(bottom, 0, 0, 0, max_width - bottom.shape[1], cv2.BORDER_CONSTANT, value=(255, 255, 255))
+    top_start = (0 + pad // 2, 0 + pad // 2)
+    center_start = (0 + pad // 2, top.shape[0] + pad // 2)
+    bottom_start = (0 + pad // 2, top.shape[0] + center.shape[0] + pad // 2)
+    
+    top_start = (top_start[0] + params[0]['x'], top_start[1] + params[0]['y'])
+    center_start = (center_start[0] + params[1]['x'], center_start[1] + params[1]['y'])
+    bottom_start = (bottom_start[0] + params[2]['x'], bottom_start[1] + params[2]['y'])
 
-    stitched_frame = np.vstack((top, center, bottom))
+    top_height = top.shape[0]
+    top_width = top.shape[1]
+    top = cv2.resize(top, (int(top.shape[1] * params[0]['s'] / 100), int(top.shape[0] * params[0]['s'] / 100)))
+    change_in_height = top_height - top.shape[0]
+    change_in_width = top_width - top.shape[1]
+    top_start = (top_start[0] + change_in_width // 2, top_start[1] + change_in_height // 2)
 
-    cv2.imshow("Image", stitched_frame)
+    center_height = center.shape[0]
+    center_width = center.shape[1]
+    center = cv2.resize(center, (int(center.shape[1] * params[1]['s'] / 100), int(center.shape[0] * params[1]['s'] / 100)))
+    change_in_height = center_height - center.shape[0]
+    change_in_width = center_width - center.shape[1]
+    center_start = (center_start[0] + change_in_width // 2, center_start[1] + change_in_height // 2)
+
+    bottom_height = bottom.shape[0]
+    bottom_width = bottom.shape[1]
+    bottom = cv2.resize(bottom, (int(bottom.shape[1] * params[2]['s'] / 100), int(bottom.shape[0] * params[2]['s'] / 100)))
+    change_in_height = bottom_height - bottom.shape[0]
+    change_in_width = bottom_width - bottom.shape[1]
+    bottom_start = (bottom_start[0] + change_in_width // 2, bottom_start[1] + change_in_height // 2)
+
+    top = cv2.warpAffine(top, cv2.getRotationMatrix2D((top.shape[1] / 2, top.shape[0] / 2), params[0]['r'], 1), (top.shape[1], top.shape[0]))
+    center = cv2.warpAffine(center, cv2.getRotationMatrix2D((center.shape[1] / 2, center.shape[0] / 2), params[1]['r'], 1), (center.shape[1], center.shape[0]))
+    bottom = cv2.warpAffine(bottom, cv2.getRotationMatrix2D((bottom.shape[1] / 2, bottom.shape[0] / 2), params[2]['r'], 1), (bottom.shape[1], bottom.shape[0]))
+
+    canvas = copy_frames(canvas, top, top_start, center, center_start, bottom, bottom_start)
+    # canvas = copy_frames2(canvas, top, top_start, center, center_start, bottom, bottom_start)
+
+    cv2.imshow('Image', canvas)
 
     key = cv2.waitKey(1) & 0xFF
 
-    if key == ord(' '):
-        mult *= -1
-    if key == ord('q'):
-        params['r1'] += 1 * mult
     if key == ord('w'):
-        params['r2'] += 1 * mult
-    if key == ord('e'):
-        params['r3'] += 1 * mult
+        # translate up
+        params[focus]['y'] -= 1
     if key == ord('a'):
-        params['s1'] += 1 * mult
+        # translate left
+        params[focus]['x'] -= 1
     if key == ord('s'):
-        params['s2'] += 1 * mult
+        # translate down
+        params[focus]['y'] += 1
     if key == ord('d'):
-        params['s3'] += 1 * mult
+        # translate right
+        params[focus]['x'] += 1
+    if key == ord('q'):
+        # rotate leftw
+        params[focus]['r'] += 1
+    if key == ord('e'):
+        # rotate right
+        params[focus]['r'] -= 1
     if key == ord('z'):
-        params['x1'] += 1 * mult
+        # scale up
+        params[focus]['s'] += 0.2
     if key == ord('x'):
-        params['y1'] += 1 * mult
-    if key == ord('c'):
-        params['x2'] += 1 * mult
-    if key == ord('v'):
-        params['y2'] += 1 * mult
-    if key == ord('b'):
-        params['x3'] += 1 * mult
-    if key == ord('n'):
-        params['y3'] += 1 * mult
+        # scale down
+        params[focus]['s'] -= 0.2
+    if key == ord('l'):
+        # switch focus to next video
+        focus = (focus + 1) % 3
+    if key == ord('1'):
+        print('Order of drawing: top, center, bottom')
+        order = 1
+    if key == ord('2'):
+        print('Order of drawing: top, bottom, center')
+        order = 2
+    if key == ord('3'):
+        print('Order of drawing: center, top, bottom')
+        order = 3
+    if key == ord('4'):
+        print('Order of drawing: center, bottom, top')
+        order = 4
+    if key == ord('5'):
+        print('Order of drawing: bottom, top, center')
+        order = 5
+    if key == ord('6'):
+        print('Order of drawing: bottom, center, top')
+        order = 6
+    
+    if key == ord(' '):
+        break
+
+
+top_video.release()
+center_video.release()
+bottom_video.release()
+
+cv2.destroyAllWindows()
+
+
+
+top_video = cv2.VideoCapture(top)
+center_video = cv2.VideoCapture(center)
+bottom_video = cv2.VideoCapture(bottom)
+print('Framerate: ', top_video.get(cv2.CAP_PROP_FPS))
+print('N frames top center bottom: ', top_video.get(cv2.CAP_PROP_FRAME_COUNT), center_video.get(cv2.CAP_PROP_FRAME_COUNT), bottom_video.get(cv2.CAP_PROP_FRAME_COUNT))
+
+out = cv2.VideoWriter(save_video, cv2.VideoWriter_fourcc(*'mp4v'), top_video.get(cv2.CAP_PROP_FPS), (canvas.shape[1], canvas.shape[0]))
+
+progress_bar = tqdm.tqdm(total=int(top_video.get(cv2.CAP_PROP_FRAME_COUNT)))
+
+while top_video.isOpened():
+    top_ret, top = top_video.read()
+    center_ret, center = center_video.read()
+    bottom_ret, bottom = bottom_video.read()
+
+    if not top_ret or not center_ret or not bottom_ret:
+        break
+
+    top = cv2.rotate(top, cv2.ROTATE_180)
+
+    canvas = np.zeros((top.shape[0] + center.shape[0] + bottom.shape[0] + pad, top.shape[1] + pad, 3), dtype=np.uint8)
+
+    top_start = (0 + pad // 2, 0 + pad // 2)
+    center_start = (0 + pad // 2, top.shape[0] + pad // 2)
+    bottom_start = (0 + pad // 2, top.shape[0] + center.shape[0] + pad // 2)
+    
+    top_start = (top_start[0] + params[0]['x'], top_start[1] + params[0]['y'])
+    center_start = (center_start[0] + params[1]['x'], center_start[1] + params[1]['y'])
+    bottom_start = (bottom_start[0] + params[2]['x'], bottom_start[1] + params[2]['y'])
+
+    top_height = top.shape[0]
+    top_width = top.shape[1]
+    top = cv2.resize(top, (int(top.shape[1] * params[0]['s'] / 100), int(top.shape[0] * params[0]['s'] / 100)))
+    change_in_height = top_height - top.shape[0]
+    change_in_width = top_width - top.shape[1]
+    top_start = (top_start[0] + change_in_width // 2, top_start[1] + change_in_height // 2)
+
+    center_height = center.shape[0]
+    center_width = center.shape[1]
+    center = cv2.resize(center, (int(center.shape[1] * params[1]['s'] / 100), int(center.shape[0] * params[1]['s'] / 100)))
+    change_in_height = center_height - center.shape[0]
+    change_in_width = center_width - center.shape[1]
+    center_start = (center_start[0] + change_in_width // 2, center_start[1] + change_in_height // 2)
+
+    bottom_height = bottom.shape[0]
+    bottom_width = bottom.shape[1]
+    bottom = cv2.resize(bottom, (int(bottom.shape[1] * params[2]['s'] / 100), int(bottom.shape[0] * params[2]['s'] / 100)))
+    change_in_height = bottom_height - bottom.shape[0]
+    change_in_width = bottom_width - bottom.shape[1]
+    bottom_start = (bottom_start[0] + change_in_width // 2, bottom_start[1] + change_in_height // 2)
+
+    top = cv2.warpAffine(top, cv2.getRotationMatrix2D((top.shape[1] / 2, top.shape[0] / 2), params[0]['r'], 1), (top.shape[1], top.shape[0]))
+    center = cv2.warpAffine(center, cv2.getRotationMatrix2D((center.shape[1] / 2, center.shape[0] / 2), params[1]['r'], 1), (center.shape[1], center.shape[0]))
+    bottom = cv2.warpAffine(bottom, cv2.getRotationMatrix2D((bottom.shape[1] / 2, bottom.shape[0] / 2), params[2]['r'], 1), (bottom.shape[1], bottom.shape[0]))
+
+    # canvas = copy_frames(canvas, top, top_start, center, center_start, bottom, bottom_start)
+    canvas = copy_frames2(canvas, top, top_start, center, center_start, bottom, bottom_start)
+
+
+    out.write(canvas)
+    progress_bar.update(1)
