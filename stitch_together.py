@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 import tqdm
 
-top = "videos/out9_transformed.mp4"
-center = "videos/out10_transformed_fps_adjusted.mp4"
-bottom = "videos/out11_transformed.mp4"
+top_path = "videos/out9_transformed.mp4"
+center_path = "videos/out10_transformed_fps_adjusted.mp4"
+bottom_path = "videos/out11_transformed.mp4"
 
 save_video = "videos/combined.mp4"
 
@@ -12,9 +12,9 @@ pad = 700
 
 
 
-top_video = cv2.VideoCapture(top)
-center_video = cv2.VideoCapture(center)
-bottom_video = cv2.VideoCapture(bottom)
+top_video = cv2.VideoCapture(top_path)
+center_video = cv2.VideoCapture(center_path)
+bottom_video = cv2.VideoCapture(bottom_path)
 
 params1 = {'r': 0, 's': 100, 'x': 0, 'y': 0}
 params2 = {'r': 0, 's': 100, 'x': 0, 'y': 0}
@@ -152,7 +152,9 @@ while top_video.isOpened():
     if key == ord('+'):
         mult *= 2
     if key == ord('-'):
-        mult /= 2
+        mult = mult // 2
+        if mult < 1:
+            mult = 1
     if key == ord(' '):
         break
 
@@ -165,9 +167,9 @@ cv2.destroyAllWindows()
 
 
 
-top_video = cv2.VideoCapture(top)
-center_video = cv2.VideoCapture(center)
-bottom_video = cv2.VideoCapture(bottom)
+top_video = cv2.VideoCapture(top_path)
+center_video = cv2.VideoCapture(center_path)
+bottom_video = cv2.VideoCapture(bottom_path)
 print('Framerate: ', top_video.get(cv2.CAP_PROP_FPS))
 print('N frames top center bottom: ', top_video.get(cv2.CAP_PROP_FRAME_COUNT), center_video.get(cv2.CAP_PROP_FRAME_COUNT), bottom_video.get(cv2.CAP_PROP_FRAME_COUNT))
 
