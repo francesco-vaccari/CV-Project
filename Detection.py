@@ -35,9 +35,17 @@ class BackgroundSubtractor:
         return diff
 
 class AdaptiveBackgroundSubtractor:
-    def __init__(self):
-        pass
+    def __init__(self, bg_path, alpha=0.01):
+        self.bg = cv2.imread(bg_path)
+        self.alpha = alpha
 
     def apply(self, frame):
+        diff = cv2.absdiff(frame, self.bg)
+        diff[diff < 50] = 0
+        diff[diff >= 50] = 255
 
-        pass
+        diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+
+        self.bg = cv2.addWeighted(frame, self.alpha, self.bg, 1 - self.alpha, 0)
+
+        return diff

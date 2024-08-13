@@ -3,11 +3,11 @@ from Detection import FrameDifferencing, BackgroundSubtractor, AdaptiveBackgroun
 
 FD = FrameDifferencing(threshold=50)
 BGSUB = BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
-ABGSUB = AdaptiveBackgroundSubtractor()
+ABGSUB = AdaptiveBackgroundSubtractor(bg_path='background_image.jpg', alpha=0.01)
 KNN = cv2.createBackgroundSubtractorKNN()
 MOG2 = cv2.createBackgroundSubtractorMOG2()
 
-detector = BGSUB
+detector = MOG2
 
 
 cap = cv2.VideoCapture('videos/refined.mp4')
