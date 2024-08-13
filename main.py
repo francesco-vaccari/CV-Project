@@ -12,7 +12,7 @@ detector = MOG2
 
 
 
-
+cap = cv2.VideoCapture('videos/refined.mp4')
 
 
 def get_bounding_boxes(mask):
@@ -24,8 +24,6 @@ def get_bounding_boxes(mask):
         boxes.append((x, y, x + w, y + h))
     
     return boxes
-
-cap = cv2.VideoCapture('videos/refined.mp4')
 
 while cap.isOpened():
     ret, frame = cap.read()
