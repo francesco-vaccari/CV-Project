@@ -6,8 +6,8 @@ class YOLOv8:
         self.classes = [0]
         self.conf_thresh = 0.1
     
-    def predict(self, image):
-        result = self.model.predict(image, conf=self.conf_thresh, classes=self.classes)
+    def predict(self, image, imgsz=640):
+        result = self.model.predict(image, conf=self.conf_thresh, classes=self.classes, imgsz=imgsz)
         boxes = result[0].boxes
         bboxes = []
         for i in range(boxes.shape[0]):

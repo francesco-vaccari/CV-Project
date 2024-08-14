@@ -4,7 +4,6 @@ from PIL import Image
 
 class YOLOv5:
     def __init__(self):
-        # pip install -qr https://raw.githubusercontent.com/ultralytics/yolov5/master/requirements.txt
         self.yolo = torch.hub.load('ultralytics/yolov5', 'yolov5x')
         self.yolo.classes = [0]
         self.yolo.max_det = 12

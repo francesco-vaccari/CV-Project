@@ -11,8 +11,8 @@ KNN = cv2.createBackgroundSubtractorKNN()
 MOG2 = cv2.createBackgroundSubtractorMOG2(detectShadows=False, varThreshold=50)
 
 # detector = MOG2
-# yolo = YOLOv8()
-yolo = YOLOv5()
+yolo = YOLOv8()
+# yolo = YOLOv5()
 
 
 
@@ -45,14 +45,23 @@ while cap.isOpened():
 
     # cv2.imshow('Mask', mask)
 
+    frame_copy = frame.copy()
 
-    bboxes = yolo.predict(frame)
+    bboxes = yolo.predict(frame, imgsz=640*5)
 
     for box in bboxes:
         x1, y1, x2, y2 = box
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
+
+    bboxes = yolo.predict(frame, imgsz=640)
+
+    for box in bboxes:
+        x1, y1, x2, y2 = box
+        cv2.rectangle(frame_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    
     cv2.imshow('Frame', frame)
+    cv2.imshow('Frame2', frame_copy)
     
     key = cv2.waitKey(1) & 0xFF
     if key == ord('q'):
