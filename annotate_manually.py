@@ -1,6 +1,6 @@
 import cv2 
 
-video = 'videos/refined.mp4'
+video = 'videos/refined2_short.mp4'
 team = 1
 player = 1
 save_file = f'annotations_{team}_{player}.txt'
@@ -15,7 +15,7 @@ button_down = False
 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 frame = None
 
-file = open(save_file, 'w')
+file = open(save_file, 'a')
 
 def mouse_callback(event, x, y, flags, param):
     global start_pos, end_pos, button_down
