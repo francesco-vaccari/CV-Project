@@ -2,7 +2,7 @@ import cv2
 
 video = 'videos/refined2_short.mp4'
 team = 1
-player = 1
+player = 2
 save_file = f'annotations_{team}_{player}.txt'
 
 
@@ -88,5 +88,9 @@ while cap.isOpened():
     if key == ord('g'):
         # increase bottom edge by 1 pixel
         end_pos = (end_pos[0], end_pos[1] - 1)
+    if key == ord('z'):
+        # reset box
+        start_pos = (0, 0)
+        end_pos = (0, 0)
 
 file.close()
