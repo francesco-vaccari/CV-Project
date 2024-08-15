@@ -2,7 +2,7 @@ import cv2
 
 video = 'videos/refined2_short.mp4'
 team = 1
-player = 2
+player = 0
 save_file = f'annotations_{team}_{player}.txt'
 
 
