@@ -64,16 +64,16 @@ while cap.isOpened():
         # move down box by 1 pixel
         start_pos = (start_pos[0], start_pos[1] + 1)
         end_pos = (end_pos[0], end_pos[1] + 1)
-    if key == ord('l'):
+    if key == ord('j'):
         # decrease left edge by 1 pixel
         start_pos = (start_pos[0] - 1, start_pos[1])
-    if key == ord('j'):
+    if key == ord('l'):
         # decrease right edge by 1 pixel
         end_pos = (end_pos[0] + 1, end_pos[1])
-    if key == ord('k'):
+    if key == ord('i'):
         # decrease top edge by 1 pixel
         start_pos = (start_pos[0], start_pos[1] - 1)
-    if key == ord('i'):
+    if key == ord('k'):
         # decrease bottom edge by 1 pixel
         end_pos = (end_pos[0], end_pos[1] + 1)
     if key == ord('f'):
