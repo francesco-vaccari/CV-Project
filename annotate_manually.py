@@ -39,7 +39,7 @@ while cap.isOpened():
             break
     
     frame_copy = frame.copy()
-    cv2.rectangle(frame_copy, start_pos, end_pos, (0, 255, 0), 2)
+    cv2.rectangle(frame_copy, start_pos, end_pos, (0, 255, 0), 4)
     cv2.imshow('frame', frame_copy)
         
     key = cv2.waitKey(1) & 0xFF
