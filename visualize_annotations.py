@@ -1,7 +1,7 @@
 import cv2
 
 video = 'videos/refined2_short.mp4'
-annotations_files = ['annotations_1_1.txt', 'annotations_1_2.txt', 'annotations_1_3.txt', 'annotations_1_4.txt', 'annotations_1_5.txt', 'annotations_1_6.txt']
+annotations_files = ['annotations_1_1.txt', 'annotations_1_2.txt', 'annotations_1_3.txt', 'annotations_1_4.txt', 'annotations_1_5.txt', 'annotations_1_6.txt', 'annotations_2_1.txt', 'annotations_2_2.txt', 'annotations_2_3.txt', 'annotations_2_4.txt', 'annotations_2_5.txt', 'annotations_2_6.txt']
 
 cap = cv2.VideoCapture(video)
 
