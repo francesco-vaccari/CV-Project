@@ -1,7 +1,3 @@
-# adjust the coordinates of the bounding boxes
-# coordinates less than zero are set to zero
-# coordinates greater than the width or height of the image are set to the maximum of that dimension
-
 import os
 import cv2
 
