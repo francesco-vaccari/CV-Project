@@ -49,3 +49,19 @@ class AdaptiveBackgroundSubtractor:
         self.bg = cv2.addWeighted(frame, self.alpha, self.bg, 1 - self.alpha, 0)
 
         return diff
+
+def preprocess(mask):
+    # preprocessing before extracting bounding boxes
+    mask = cv2.erode(mask, None, iterations=2)
+    mask = cv2.dilate(mask, None, iterations=18)
+    return mask
+
+def extract_boxes(mask):
+    # extract bounding boxes from mask
+    # returns a list of bounding boxes
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    boxes = []
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        boxes.append((x, y, x + w, y + h))
+    return boxes

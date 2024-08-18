@@ -1,71 +1,111 @@
 import cv2
-from Detection import FrameDifferencing, BackgroundSubtractor, AdaptiveBackgroundSubtractor
+import Detection
+from Annotation import Annotation
 from yolov5_test import YOLOv5
 from yolov8_test import YOLOv8
-from PIL import Image
+import tqdm
+import matplotlib.pyplot as plt
 
-FD = FrameDifferencing(threshold=50)
-BGSUB = BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
-ABGSUB = AdaptiveBackgroundSubtractor(bg_path='background_image.jpg', alpha=0.01)
+video = 'videos/refined2_short.mp4'
+annotations_folder = 'annotations'
+
+FD = Detection.FrameDifferencing(threshold=50)
+BGSUB = Detection.BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
+ABGSUB = Detection.AdaptiveBackgroundSubtractor(bg_path='background_image.jpg', alpha=0.01)
+# gaussian average
+# improved gaussian average
 KNN = cv2.createBackgroundSubtractorKNN()
-MOG2 = cv2.createBackgroundSubtractorMOG2(detectShadows=False, varThreshold=50)
+MOG2 = cv2.createBackgroundSubtractorMOG2()
 
-# detector = MOG2
-yolo = YOLOv8()
-# yolo = YOLOv5()
-
-
-
-cap = cv2.VideoCapture('videos/refined.mp4')
+detector = MOG2
+threshold_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+show_threshold = 0.4
 
 
-def get_bounding_boxes(mask):
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    boxes = []
-    for contour in contours:
-        x, y, w, h = cv2.boundingRect(contour)
-        boxes.append((x, y, x + w, y + h))
-    return boxes
+
+cap = cv2.VideoCapture(video)
+annotations = Annotation(annotations_folder)
+
+metrics = []
+for i in range(len(threshold_values)):
+    metrics.append([])
+
+progress_bar = tqdm.tqdm(total=int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
 
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
     
-    # mask = detector.apply(frame)
+    mask = detector.apply(frame)
 
-    # mask = cv2.erode(mask, None, iterations=2)
-    # mask = cv2.dilate(mask, None, iterations=18)
+    mask = Detection.preprocess(mask)
 
-    # boxes = get_bounding_boxes(mask)
+    boxes = Detection.extract_boxes(mask)
 
-    # for box in boxes:
-    #     x1, y1, x2, y2 = box
-    #     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    correct_box_indexes = []
+    for i, threshold in enumerate(threshold_values):
+        precision, recall, indexes = annotations.evaluate(boxes, int(cap.get(cv2.CAP_PROP_POS_FRAMES))-1, threshold=threshold)
+        metrics[i].append((precision, recall))
+        if threshold == show_threshold:
+            correct_box_indexes = indexes
 
-    # cv2.imshow('Mask', mask)
-
-    frame_copy = frame.copy()
-
-    bboxes = yolo.predict(frame, imgsz=640*5)
-
-    for box in bboxes:
+    for j, box in enumerate(boxes):
         x1, y1, x2, y2 = box
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-
-    bboxes = yolo.predict(frame, imgsz=640)
-
-    for box in bboxes:
-        x1, y1, x2, y2 = box
-        cv2.rectangle(frame_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        if j in correct_box_indexes:
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 4)
+        else:
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 4)
+    cv2.imshow('frame', frame)
+    cv2.imshow('mask', mask)
     
-    cv2.imshow('Frame', frame)
-    cv2.imshow('Frame2', frame_copy)
-    
-    key = cv2.waitKey(1) & 0xFF
-    if key == ord('q'):
+    progress_bar.update(1)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release()
 cv2.destroyAllWindows()
+progress_bar.close()
+
+
+average_precisions = []
+average_recalls = []
+for i, threshold in enumerate(threshold_values):
+    precisions = []
+    recalls = []
+
+    for metric in metrics[i]:
+        precisions.append(metric[0])
+        recalls.append(metric[1])
+    
+    precision = sum(precisions)/len(precisions)
+    recall = sum(recalls)/len(recalls)
+
+    average_precisions.append(precision)
+    average_recalls.append(recall)
+    
+    print('----------------------')
+    print(f'IoU Threshold: {threshold}')
+    print(f'Precision: {precision}')
+    print(f'Recall: {recall}')
+    print('----------------------')
+
+# mAP over IoU thresholds
+mAP = sum(average_precisions)/len(average_precisions)
+print(f'mAP: {mAP}')
+print('----------------------')
+
+
+
+
+
+
+
+
+
+
+# yolo = YOLOv8()
+# yolo = YOLOv5()
+# bboxes = yolo.predict(frame, imgsz=640*5)
+# bboxes = yolo.predict(frame, imgsz=640)
