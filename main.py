@@ -19,8 +19,8 @@ MOG2 = cv2.createBackgroundSubtractorMOG2()
 
 detector = MOG2
 threshold_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-show_threshold = 0.4
-
+show_threshold = 0.2
+show = True
 
 
 cap = cv2.VideoCapture(video)
@@ -50,14 +50,15 @@ while cap.isOpened():
         if threshold == show_threshold:
             correct_box_indexes = indexes
 
-    for j, box in enumerate(boxes):
-        x1, y1, x2, y2 = box
-        if j in correct_box_indexes:
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 4)
-        else:
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 4)
-    cv2.imshow('frame', frame)
-    cv2.imshow('mask', mask)
+    if show:
+        for j, box in enumerate(boxes):
+            x1, y1, x2, y2 = box
+            if j in correct_box_indexes:
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 4)
+            else:
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 4)
+        cv2.imshow('frame', frame)
+        cv2.imshow('mask', mask)
     
     progress_bar.update(1)
 
@@ -95,10 +96,6 @@ for i, threshold in enumerate(threshold_values):
 mAP = sum(average_precisions)/len(average_precisions)
 print(f'mAP: {mAP}')
 print('----------------------')
-
-
-
-
 
 
 
