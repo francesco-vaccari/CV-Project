@@ -5,9 +5,23 @@ from yolov5_test import YOLOv5
 from yolov8_test import YOLOv8
 import tqdm
 import matplotlib.pyplot as plt
+import argparse
+
+def scale_frame(frame, scale_percent):
+    """Scale the video frames"""
+    
+    width = int(frame.shape[1] * scale_percent / 100)
+    height = int(frame.shape[0] * scale_percent / 100)
+    
+    return cv2.resize(frame, (width, height))
 
 video = 'videos/refined2_short.mp4'
 annotations_folder = 'annotations'
+
+#Parse command line arguments
+parser = argparse.ArgumentParser(description='Options of our code')
+parser.add_argument('-s', '--scale', type=int, default=100, help='Scale percentage of the window size (default: 100)')
+args = parser.parse_args()
 
 FD = Detection.FrameDifferencing(threshold=50)
 BGSUB = Detection.BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
@@ -19,8 +33,8 @@ MOG2 = cv2.createBackgroundSubtractorMOG2()
 
 detector = MOG2
 threshold_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-show_threshold = 0.2
-show = True
+show_threshold = 0.4
+
 
 
 cap = cv2.VideoCapture(video)
@@ -37,6 +51,7 @@ while cap.isOpened():
     if not ret:
         break
     
+    frame = scale_frame(frame, args.scale)
     mask = detector.apply(frame)
 
     mask = Detection.preprocess(mask)
@@ -50,15 +65,14 @@ while cap.isOpened():
         if threshold == show_threshold:
             correct_box_indexes = indexes
 
-    if show:
-        for j, box in enumerate(boxes):
-            x1, y1, x2, y2 = box
-            if j in correct_box_indexes:
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 4)
-            else:
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 4)
-        cv2.imshow('frame', frame)
-        cv2.imshow('mask', mask)
+    for j, box in enumerate(boxes):
+        x1, y1, x2, y2 = box
+        if j in correct_box_indexes:
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 4)
+        else:
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 4)
+    cv2.imshow('frame', frame)
+    cv2.imshow('mask', mask)
     
     progress_bar.update(1)
 
@@ -96,6 +110,10 @@ for i, threshold in enumerate(threshold_values):
 mAP = sum(average_precisions)/len(average_precisions)
 print(f'mAP: {mAP}')
 print('----------------------')
+
+
+
+
 
 
 
