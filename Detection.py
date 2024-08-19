@@ -52,8 +52,12 @@ class AdaptiveBackgroundSubtractor:
 
 def preprocess(mask):
     # preprocessing before extracting bounding boxes
+    mask = cv2.medianBlur(mask, 13) # 13 seems a good balance between recall and accuracy
     mask = cv2.erode(mask, None, iterations=2)
     mask = cv2.dilate(mask, None, iterations=18)
+    mask = cv2.erode(mask, None, iterations=2)
+
+    # mask = cv2.GaussianBlur(mask, (5,5),0) #blurring appears to reduce accuracy
     return mask
 
 def extract_boxes(mask):
