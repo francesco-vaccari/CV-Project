@@ -7,27 +7,13 @@ import tqdm
 import matplotlib.pyplot as plt
 import argparse
 
-def scale_frame(frame, scale_percent):
-    """Scale the video frames"""
-    
-    width = int(frame.shape[1] * scale_percent / 100)
-    height = int(frame.shape[0] * scale_percent / 100)
-    
-    return cv2.resize(frame, (width, height))
 
 video = 'videos/refined2_short.mp4'
 annotations_folder = 'annotations'
 
-#Parse command line arguments
-parser = argparse.ArgumentParser(description='Options of our code')
-parser.add_argument('-s', '--scale', type=int, default=100, help='Scale percentage of the window size (default: 100)')
-args = parser.parse_args()
-
 FD = Detection.FrameDifferencing(threshold=50)
 BGSUB = Detection.BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
 ABGSUB = Detection.AdaptiveBackgroundSubtractor(bg_path='background_image.jpg', alpha=0.01)
-# gaussian average
-# improved gaussian average
 KNN = cv2.createBackgroundSubtractorKNN()
 MOG2 = cv2.createBackgroundSubtractorMOG2()
 
@@ -36,6 +22,12 @@ threshold_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 show_threshold = 0.4
 
 
+
+
+
+
+cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
+cv2.namedWindow('mask', cv2.WINDOW_NORMAL)
 
 cap = cv2.VideoCapture(video)
 annotations = Annotation(annotations_folder)
@@ -51,7 +43,6 @@ while cap.isOpened():
     if not ret:
         break
     
-    frame = scale_frame(frame, args.scale)
     mask = detector.apply(frame)
 
     mask = Detection.preprocess(mask)
