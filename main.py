@@ -13,15 +13,15 @@ video = 'videos/refined2_short.mp4'
 annotations_folder = 'annotations'
 
 notes_folder = 'notes/'
-notes_name = 'MOG2_thinMedianBlur13'
+notes_name = 'MOG2_thres20'
 note = open(notes_folder+notes_name+".txt", "w")
 
 FD = Detection.FrameDifferencing(threshold=50)
 BGSUB = Detection.BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
 ABGSUB = Detection.AdaptiveBackgroundSubtractor(bg_path='background_image.jpg', alpha=0.01)
-KNN = cv2.createBackgroundSubtractorKNN(history=500, dist2Threshold=400.0, detectShadows=True)
-MOG2 = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=16, detectShadows=True)
-CNT = bgseg.createBackgroundSubtractorCNT(minPixelStability=15, useHistory=True, maxPixelStability=1*60, isParallel=True)
+KNN = cv2.createBackgroundSubtractorKNN(history=500, dist2Threshold=700.0, detectShadows=True)
+MOG2 = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=20, detectShadows=True)
+CNT = bgseg.createBackgroundSubtractorCNT(minPixelStability=10, useHistory=True, maxPixelStability=5*60, isParallel=True)
 GMG = bgseg.createBackgroundSubtractorGMG(initializationFrames=120, decisionThreshold=0.8)
 GSOC = bgseg.createBackgroundSubtractorGSOC(mc=bgseg.LSBP_CAMERA_MOTION_COMPENSATION_NONE, nSamples=20, replaceRate=0.003,
                                             propagationRate=0.01, hitsThreshold=32, alpha= 0.01, beta=0.0022,
@@ -35,7 +35,7 @@ LSBP = bgseg.createBackgroundSubtractorLSBP(mc=bgseg.LSBP_CAMERA_MOTION_COMPENSA
 
 detector = MOG2
 threshold_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-show_threshold = 0.4
+show_threshold = [0.4]
 
 
 
@@ -69,7 +69,7 @@ while cap.isOpened():
     for i, threshold in enumerate(threshold_values):
         precision, recall, indexes = annotations.evaluate(boxes, int(cap.get(cv2.CAP_PROP_POS_FRAMES))-1, threshold=threshold)
         metrics[i].append((precision, recall))
-        if threshold == show_threshold:
+        if threshold in show_threshold:
             correct_box_indexes = indexes
 
     for j, box in enumerate(boxes):
