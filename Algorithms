@@ -1,7 +1,0 @@
-Tracking
-	•	region-based tracking
-	•	features-based tracking
-	•	lucas-kanade optical flow, pyramidal implementation
-	•	bayesian tracking
-	•	kalman filter
-	•	particle filters, SIR algorithm
