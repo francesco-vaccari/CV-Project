@@ -24,14 +24,19 @@ class Annotation:
     
     def load_annotations(self, annotations_files):
         for file in annotations_files:
-            team, player = file.split('_')[1], file.split('_')[2].split('.')[0]
-            with open(file, 'r') as f:
-                lines = f.readlines()
-                for line in lines:
-                    frame, x1, y1, x2, y2 = line.strip().split(',')
-                    frame = int(frame)-1
-                    x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-                    self.annotations[int(team)-1][int(player)-1].append(FrameAnnotation(frame, team, player, x1, y1, x2, y2)) # frame number is the same as the index
+            try:
+                team, player = file.split('_')[1], file.split('_')[2].split('.')[0]
+                with open(file, 'r') as f:
+                    lines = f.readlines()
+                    for line in lines:
+                        frame, x1, y1, x2, y2 = line.strip().split(',')
+                        frame = int(frame)-1
+                        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                        self.annotations[int(team)-1][int(player)-1].append(FrameAnnotation(frame, team, player, x1, y1, x2, y2)) # frame number is the same as the index
+            except Exception as e:
+                # the annotation is for the ball, not for a player
+                pass
+                
 
     def get_annotation(self, n_frame):
         annotations = []
