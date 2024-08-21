@@ -4,6 +4,7 @@ import histogram as his
 import Detection as det
 import Annotation
 import enum
+import math
 
 annotations_folder = 'annotations'
 Status = enum.Enum('Status', ['ACTIVE', 'LOST', 'WAITING'])
@@ -123,10 +124,14 @@ class OpenCVTracker:
 
 
 class DenseOpticalFlowTracker:
-    def __init__(self, tracker_name, frame, initial_boxes):
+    def __init__(self, tracker_name, frame, initial_boxes, points_sampling='gaussian25'):
         available_trackers = ["DISOpticalFlow", "FarnebackOpticalFlow"]
         if tracker_name not in available_trackers:
             raise Exception("Tracker not available. Available trackers are " + str(available_trackers))
+
+        available_points_sampling = ['gaussian9', 'gaussian16', 'gaussian25', 'center', 'random9', 'random16', 'random25']
+        if points_sampling not in available_points_sampling:
+            raise Exception("Points sampling not available. Available points sampling are " + str(available_points_sampling))
         
         if tracker_name == "DISOpticalFlow":
             self.tracker = cv2.DISOpticalFlow.create(cv2.DISOPTICAL_FLOW_PRESET_ULTRAFAST) # PRESET_ULTRAFAST, PRESET_FAST AND PRESET_MEDIUM
@@ -135,46 +140,151 @@ class DenseOpticalFlowTracker:
         
         self.previous_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         self.next_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        self.boxes = initial_boxes
+        self.next_frame_color = frame
+        self.boxes = []
+        for box in initial_boxes:
+            x, y, w, h = box
+            self.boxes.append([x, y, x + w, y + h])
+
+        self.points_sampling = points_sampling
+        self.points = []
+        for i in range(len(self.boxes)):
+            self.points.append(self.sample_points(self.boxes[i]))
+    
+    def sample_points(self, box, single_point_resample=False):
+        points = []
+        box = box[0], box[1], box[2], box[3]
+        min_x = min(box[0], box[2])
+        max_x = max(box[0], box[2])
+        min_y = min(box[1], box[3])
+        max_y = max(box[1], box[3])
+        box = [min_x+1, min_y+1, max_x-1, max_y-1]
+        if self.points_sampling == 'center':
+            point = [int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)]
+            points.append(point)
+            if single_point_resample:
+                return point
+        elif self.points_sampling == 'random9':
+            for i in range(9):
+                point = [np.random.randint(box[0], box[2]), np.random.randint(box[1], box[3])]
+                points.append(point)
+                if single_point_resample:
+                    return point
+        elif self.points_sampling == 'random16':
+            for i in range(16):
+                point = [np.random.randint(box[0], box[2]), np.random.randint(box[1], box[3])]
+                points.append(point)
+                if single_point_resample:
+                    return point
+        elif self.points_sampling == 'random25':
+            for i in range(25):
+                point = [np.random.randint(box[0], box[2]), np.random.randint(box[1], box[3])]
+                points.append(point)
+                if single_point_resample:
+                    return point
+        elif self.points_sampling == 'gaussian9' or self.points_sampling == 'gaussian16' or self.points_sampling == 'gaussian25':
+            num_points = int(self.points_sampling[8:])
+            mean_x = (box[0] + box[2]) / 2
+            mean_y = (box[1] + box[3]) / 2
+            std_x = (math.fabs(box[0] - box[2]) + math.fabs(box[1] - box[3])) / 6
+            std_y = (math.fabs(box[0] - box[2]) + math.fabs(box[1] - box[3])) / 6
+            for i in range(num_points):
+                sampled_x = np.random.normal(loc=mean_x, scale=std_x)
+                sampled_y = np.random.normal(loc=mean_y, scale=std_y)
+                sampled_x = np.clip(sampled_x, box[0], box[2])
+                sampled_y = np.clip(sampled_y, box[1], box[3])
+                points.append([int(sampled_x), int(sampled_y)])
+                if single_point_resample:
+                    return [int(sampled_x), int(sampled_y)]
+
+        return points
     
     def update(self, frame):
         self.next_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        self.next_frame_color = frame
         flow = self.tracker.calc(self.previous_frame, self.next_frame, None)
 
         result = self.update_boxes(flow)
 
+        for i, res in enumerate(result):
+            if not res:
+                # find again the object and resample the points to track
+                # if the box is found set result[i] to True
+                # otherwise leave it to False
+                pass
+                
+
         self.previous_frame = self.next_frame
 
-        return result, self.boxes
+        boxes = []
+        for box in self.boxes:
+            x, y, x2, y2 = box
+            boxes.append([x, y, x2 - x, y2 - y])
+        
+        return result, boxes
 
     def update_boxes(self, flow):
-        # apply the movement described by the optical flow found to the center of the boxes
-        # or to a series of poinst within the box so that we can compute the average movement of the object and maybe also exclude outliers
-        # that have values too far from the average
+        success = [True for i in range(len(self.boxes))]
 
-
-        # then use the mask to find the bounding box surrounding the center of the box predicted by the optical flow
-        # or around the points moved with the flow
-        # or use a motion detector to find the bounding box surrounding the object
         magnitude, angle = cv2.cartToPolar(flow[..., 0], flow[..., 1])
 
-        mask = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX)
-        mask = np.where(mask > 50, 255, 0)
-        mask = mask.astype(np.uint8)
-        
+        frame_copy = self.next_frame_color.copy()
 
-        # update the boxes with the new bounding boxes found
+        for i, points in enumerate(self.points):
+            for j, point in enumerate(points):
+                x, y = point
+                magnitude_point = magnitude[y, x]
+                angle_point = angle[y, x]
+                delta_x = magnitude_point * math.cos(angle_point)
+                delta_y = magnitude_point * math.sin(angle_point)
+                new_x = x + delta_x
+                new_y = y + delta_y
+                new_x = np.clip(new_x, 0, self.next_frame.shape[1]-1)
+                new_y = np.clip(new_y, 0, self.next_frame.shape[0]-1)
+                self.points[i][j] = [int(new_x), int(new_y)]
+            
+            x_min = self.next_frame.shape[1] + 1
+            y_min = self.next_frame.shape[0] + 1
+            x_max = -1
+            y_max = -1
+            for j, point in enumerate(self.points[i]):
+                cv2.circle(frame_copy, (point[0], point[1]), 4, (0, 255, 0), -1)
+                x, y = point
+                x_min = min(x_min, x)
+                y_min = min(y_min, y)
+                x_max = max(x_max, x)
+                y_max = max(y_max, y)
+            
+            center = [(x_min + x_max) / 2, (y_min + y_max) / 2]
+            cv2.circle(frame_copy, (int(center[0]), int(center[1])), 8, (255, 0, 0), -1)
 
-        
-        # if the bounding box is not found or if the flow for that box is 0 (means lost tracking)
-        # or the flow of the different is chaotic
-        # then we need to find the object in the frame and set again the box to the new found bounding box
-        # we can use the same thing of the opencv trackers class
+            bg = BGSUB.apply(self.next_frame_color)
+            bg = det.preprocess(bg)
+            new_boxes = det.extract_boxes(bg)
 
+            for box in new_boxes:
+                x, y, x2, y2 = box
+                if center[0] >= x and center[0] <= x2 and center[1] >= y and center[1] <= y2:
+                    # maybe instead of just substituting the box
+                    # I can take move the box of before with the averaged flow of all points
+                    # and then increase or decrease the coordinates of the edges according to the size of the box found with detector
+                    self.boxes[i] = box
+                    cv2.rectangle(frame_copy, (x, y), (x2, y2), (255, 0, 0), 4)
+                    success[i] = True
+                    break
+            
+            # resample the points that are not inside the bounding box
+            # maybe if more than a percent of points are outside the declare tracking lost
+            for j, point in enumerate(self.points[i]):
+                x1 = self.boxes[i][0]
+                y1 = self.boxes[i][1]
+                x2 = self.boxes[i][2]
+                y2 = self.boxes[i][3]
+                if point[0] < x1 or point[0] > x2 or point[1] < y1 or point[1] > y2:
+                    self.points[i][j] = self.sample_points(self.boxes[i], single_point_resample=True)
 
-        # return whether the boxes were found or not
-        return [True] * len(self.boxes)
-
+        cv2.imshow('tracker', frame_copy)
+        return success
 
 
 
