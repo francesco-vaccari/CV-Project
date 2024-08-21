@@ -33,6 +33,7 @@ def compareToHistory (toCompare, history):
     for i, dif in enumerate(diff) :
         error += dif
     error = error / len(diff)
+    print(error)
 
     return error
 
