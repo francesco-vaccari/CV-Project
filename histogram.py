@@ -3,7 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 colors = ('b', 'g', 'r')
-
+COMP_METHOD = cv.HISTCMP_CORREL
 def extract_histograms(frame, box):
     x, y, h, w = box
 
@@ -18,7 +18,23 @@ def extract_histograms(frame, box):
 
     return histograms
 
+def compareToHistory (toCompare, history):
+    diff = []
 
+    for c, col in enumerate(colors):
+        cv.normalize(toCompare[c], toCompare[c], alpha=0, beta=1, norm_type=cv.NORM_MINMAX)
+
+    for i, histo in enumerate(history):
+        for c, col in enumerate(colors):
+            cv.normalize(history[i][c], history[i][c], alpha=0, beta=1, norm_type=cv.NORM_MINMAX)
+            diff.append(cv.compareHist(toCompare[c], history[i][c], COMP_METHOD))
+
+    error = 0
+    for i, dif in enumerate(diff) :
+        error += dif
+    error = error / len(diff)
+
+    return error
 
 #----------------------------------------------------------------------------------------------------------------------
 # here starts unimportant, testing stuff
