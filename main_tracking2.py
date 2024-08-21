@@ -23,7 +23,8 @@ for i in range(len(annotation)):
 
 
 # tracker = OpenCVTracker('CSRT', frame, initial_boxes)
-tracker = DenseOpticalFlowTracker('DISOpticalFlow', frame, initial_boxes)
+# tracker = DenseOpticalFlowTracker('DISOpticalFlow', frame, initial_boxes)
+tracker = PyrLKOpticalFlowTracker(frame, initial_boxes)
 
 
 while cap.isOpened():

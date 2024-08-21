@@ -93,9 +93,12 @@ class DenseOpticalFlowTracker:
 
     def update_boxes(self, flow):
         # apply the movement described by the optical flow found to the center of the boxes
+        # or to a series of poinst within the box so that we can compute the average movement of the object and maybe also exclude outliers
+        # that have values too far from the average
 
 
         # then use the mask to find the bounding box surrounding the center of the box predicted by the optical flow
+        # or around the points moved with the flow
         # or use a motion detector to find the bounding box surrounding the object
         magnitude, angle = cv2.cartToPolar(flow[..., 0], flow[..., 1])
 
@@ -108,22 +111,57 @@ class DenseOpticalFlowTracker:
 
         
         # if the bounding box is not found or if the flow for that box is 0 (means lost tracking)
+        # or the flow of the different is chaotic
         # then we need to find the object in the frame and set again the box to the new found bounding box
         # we can use the same thing of the opencv trackers class
 
 
-        # return wether the boxes were found or not
+        # return whether the boxes were found or not
         return [True] * len(self.boxes)
 
 
 
 
 class PyrLKOpticalFlowTracker:
-    def __init__(self):
-        pass
+    def __init__(self, frame, initial_boxes):
+        self.tracker = cv2.SparsePyrLKOpticalFlow.create()
+        self.previous_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        self.next_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        self.boxes = initial_boxes
 
+        # we can use the center of the bounding boxes as the points to track like in the following line
+        self.previous_points = np.array([[int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)] for box in initial_boxes], dtype=np.float32)
+        # or we can maybe use a set of points within the bounding box
 
+    def update(self, frame):
+        # use current frame to compute optical flow already applied to the points given as input
+        # success is a vector that indicates whether the flow was found or not for the specific point
+        self.next_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        next_points, success, error = self.tracker.calc(self.previous_frame, self.next_frame, self.previous_points, None)
+
+        result = self.update_boxes(next_points, success, error)
+
+        self.previous_frame = self.next_frame
+        self.previous_points = next_points
+
+        return result, self.boxes
+
+    def update_boxes(self, next_points, success, error):
+        # since the flow is not given (already applied to points) we cannot use to exclude bad points
+        # the error is a vector that contains the error for the corresponding point (it is an error measure, don't know the meaning)
+        # maybe we can use that to evaluate the quality of points found
+
+        # using points found with the optical flow calculated, we need to update the bounding boxes
+        # if we use multiple points for each bounding box then we need some variable to tell us which points belong to which box
+        # and then we need to find the bounding box surrounding the points found (or the center point) and to do so we can use a motion detector
+
+        # if the success for the center point (or the points) is 0 then it means that it was not possible to find an optical flow for that point
+        # and so we need fo find again the object and reinitialize the previous points and the bounding box
+        # to do so we can use the same methods as before
+        
+        # return a list of booleans indicating whether the box for the object tracked was found or not
+        return True
 
 class KalmanFilterTracker:
-    def __init__(self):
+    def __init__(self, frame, initial_boxes):
         pass
