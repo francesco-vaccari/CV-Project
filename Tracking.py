@@ -6,8 +6,12 @@ import Annotation
 import enum
 
 annotations_folder = 'annotations'
-Status = enum.Enum('Status', ['ACTIVE', 'LOST', 'WAITING'])
-WAIT_TIME = 50
+Status = enum.Enum('Status', ['ACTIVE', 'LOST', 'WAITING','OVERLAPPING', 'STATIC'])
+WAIT_TIME = 10
+MAX_OVERLAP_TIME = 30
+MAX_OVERLAP_AREA = 0.5
+MAX_STATIC_TIME = 30
+MAX_STATIC_ERROR = 10
 BGSUB = det.BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
 
 class OpenCVTracker:
@@ -36,6 +40,8 @@ class OpenCVTracker:
         self.box_size_history = []
         self.waitouts = []
         self.status = []
+        self.static_time =[]
+        self.center_history = []
         for i, box in enumerate(initial_boxes):
             self.tracker_instances.append(self.tracker.create())
             
@@ -45,7 +51,9 @@ class OpenCVTracker:
 
             self.color_histogram_history.append([])
             self.box_size_history.append([])
-            self.waitouts.append(WAIT_TIME)
+            self.waitouts.append(0)
+            self.static_time.append(0)
+            self.center_history.append([])
     
     def update(self, frame):
         results = []
@@ -54,22 +62,35 @@ class OpenCVTracker:
         for i, instance in enumerate(self.tracker_instances):
             if self.status[i] == Status.WAITING:
                 if self.waitouts[i] == 0:
-                    self.reinitialize_tracker(frame, i)
+                    success, box = self.reinitialize_tracker(frame, i)
                     print(
                         "Attempt after WAIT, result " + str(self.status[i]) + " from " + str(i) + " waitout is " + str(
                             self.waitouts[i]) + " \n")
+                    if success:
+                        self.update_tracker(frame,i,box)
                 else:
                     self.waitouts[i] -= 1
+                    success = False
+                    box = (0,0,0,0)
+            elif self.status[i] == Status.LOST or self.status[i] == Status.OVERLAPPING:
+                success, box = self.reinitialize_tracker(frame, i)
+                print(
+                    "Attempt after CHECKS, result " + str(self.status[i]) + " from " + str(i) + " \n")
+                if success:
+                    self.update_tracker(frame, i, box)
             else:
                 success, box = instance.update(frame)
                 if not success:
                     self.status[i] = Status.LOST
-                    self.reinitialize_tracker(frame, i)
-                    print("Immediate Attempt, result" + str(self.status[i]) + " from " + str(i) + "\n")
-                else:
+                    success, box = self.reinitialize_tracker(frame, i)
+                    print("Immediate Attempt, result " + str(self.status[i]) + " from " + str(i) + "\n")
+                if success:
                     self.update_tracker(frame, i, box)
-                results.append(success)
-                boxes.append(box)
+            results.append(success)
+            boxes.append(box)
+
+        self.check_Static(boxes, results)
+        self.check_Overlap(boxes, results)
         
         return results, boxes
     
@@ -80,8 +101,11 @@ class OpenCVTracker:
         # to build a history of the color histograms or feature points
         # or any other information that can help finding again the object if the tracker loses it
 
+        center = ((box[0]+box[2])/2, (box[1]+box[3])/2)
+
         self.color_histogram_history[i].append(his.extract_histograms(frame, box))  # something like this
-        self.box_size_history[i].append((box[2]) * (box[3]))
+        self.box_size_history[i].append(abs(box[0]-box[2])*abs(box[1]-box[3]))
+        self.center_history[i].append(center)
         # self.feature_points_history[i] = [] # something like this
 
     def reinitialize_tracker(self, frame, i):
@@ -106,19 +130,90 @@ class OpenCVTracker:
 
         for b, box in enumerate(new_boxes) :
             last_diff = his.compareToHistory(his.extract_histograms(frame, box), self.color_histogram_history[i])
-            boxsize = box[2]*box[3]
-            if (last_diff < min_diff or min_diff == -1) and ((meansize*0.66)<=boxsize<=(meansize*1.5)):
+            boxsize = abs(box[0]-box[2])*abs(box[1]-box[3])
+            if (last_diff < min_diff or min_diff == -1) and ((meansize*0.5)<=boxsize<=(meansize*2)):
                 min_diff = last_diff
                 min_b = b
 
         if min_diff == -1 :
             self.status[i] = Status.WAITING
-            self.waitouts[i] == WAIT_TIME
+            self.waitouts[i] = WAIT_TIME
+            return False, (0,0,0,0)
         else:
             print("Found Rect "+str(new_boxes[min_b])+" area is "+str(new_boxes[min_b][2]*new_boxes[min_b][3])+"\n")
             self.tracker_instances[i].init(frame, new_boxes[min_b])
 
             self.status[i] = Status.ACTIVE
+            return True, new_boxes[min_b]
+
+    def check_Overlap(self, boxes, results):
+        for i in range(0, len(boxes)):
+            for j in range(i+1, len(boxes)):
+
+                if results[i] and results[j]:
+
+                    first = boxes[i]
+                    second = boxes[j]
+
+                    if not(((first[0] <= second[0] <= first[0] + first[2]) and (first[1] <= second[1] <= first[1] +
+                         first[3])) or ((first[0] <= second[0] <=first[0] + first[2]) and (first[1] <= second[1] +
+                         second[3] <= first[1] + first[3])) or ((first[0] <= second[0] + second[2] <= first[0] +
+                         first[2])  and (first[1] <= second[1] <= first[1] + first[3])) or ((first[0] <= second[0] +
+                         second[2] <= first[0] + first[2]) and (first[1] <= second[1] + second[3]<= first[1] + first[3]))
+                         or ((second[0] <= first[0] <= second[0] + second[2]) and (second[1] <= first[1] <= second[1] +
+                         second[3])) or ((second[0] <= first[0] <=second[0] + second[2]) and (second[1] <= first[1] +
+                         first[3] <= second[1] + second[3])) or ((second[0] <= first[0] + first[2] <= second[0] +
+                         second[2])  and (second[1] <= first[1] <= second[1] + second[3])) or ((second[0] <= first[0] +
+                         first[2] <= second[0] + second[2]) and (second[1] <= first[1] + first[3]<= second[1] + second[3]))
+                         ):
+                        break
+
+                    x1 = max(first[0], second[0])
+                    y1 = max(first[1], second[1])
+                    x2 = min(first[2], second[2])
+                    y2 = min(first[3], second[3])
+
+                    area1 = abs(first[2] - first[0]) * abs(first[3] - first[1])
+                    area2 = abs(second[2] - second[0]) * abs(second[3] - second[1])
+                    area3 = abs(x2 - x1) * abs(y2 - y1)
+
+                    if area3 == 0 :
+                        #print("No Overlap here."+ str(i)+ " "+ str(j) + "\n")
+                        break
+                    elif area1 == 0 or area2 == 0:
+                        #print("Somehow, an area was zero. "+ str(i)+ " "+ str(j) + "\n")
+                        break
+
+                    if area3 / area1 >= MAX_OVERLAP_AREA or area3 / area2 >= MAX_OVERLAP_AREA:
+                        if area1 < area2:
+                            self.status[i] = Status.OVERLAPPING
+                            print(str(i)+ " Overlaps on "+str(j)+"\n")
+                        else:
+                            self.status[j] = Status.OVERLAPPING
+                            print(str(j) + " Overlaps on " + str(i) + "\n")
+                    elif self.status[i]==Status.OVERLAPPING or self.status[j] == Status.OVERLAPPING:
+                        self.status[i] = Status.ACTIVE
+                        self.status[j] = Status.ACTIVE
+
+    def check_Static(self, boxes, results):
+        for i, box in enumerate(boxes):
+            if results[i]:
+                center = (int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2))
+                old_center = self.center_history[i][-1]
+                if abs(old_center[0] - center[0]) <= MAX_STATIC_ERROR and abs(
+                        old_center[1] - center[1]) <= MAX_STATIC_ERROR:
+
+                    if self.static_time == MAX_STATIC_TIME:
+                        self.status[i] = Status.LOST
+                        self.static_time[i] = 0
+                    else:
+                        self.static_time[i] += 1
+                        self.status[i] = Status.STATIC
+                else:
+                    self.static_time = 0
+                    self.status = Status.ACTIVE
+
+
 
 
 

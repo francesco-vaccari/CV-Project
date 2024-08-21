@@ -22,7 +22,7 @@ for i in range(len(annotation)):
     initial_boxes.append((min(annotation[i].x1, annotation[i].x2), min(annotation[i].y1, annotation[i].y2), abs(annotation[i].x1 - annotation[i].x2), abs(annotation[i].y1 - annotation[i].y2)))
 
 
-tracker = OpenCVTracker('CSRT', frame, initial_boxes)
+    tracker = OpenCVTracker('CSRT', frame, initial_boxes)
 # tracker = DenseOpticalFlowTracker('DISOpticalFlow', frame, initial_boxes)
 #tracker = PyrLKOpticalFlowTracker(frame, initial_boxes)
 
