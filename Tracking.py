@@ -345,13 +345,14 @@ class DenseOpticalFlowTracker:
         return result, boxes
 
     def update_boxes(self, flow):
-        success = [True for i in range(len(self.boxes))]
-
+        frame_copy = self.next_frame_color.copy()
+        
+        success = [False for i in range(len(self.boxes))]
+        
         magnitude, angle = cv2.cartToPolar(flow[..., 0], flow[..., 1])
 
-        frame_copy = self.next_frame_color.copy()
-
         for i, points in enumerate(self.points):
+            # apply the flow to the points
             for j, point in enumerate(points):
                 x, y = point
                 magnitude_point = magnitude[y, x]
@@ -363,46 +364,96 @@ class DenseOpticalFlowTracker:
                 new_x = np.clip(new_x, 0, self.next_frame.shape[1]-1)
                 new_y = np.clip(new_y, 0, self.next_frame.shape[0]-1)
                 self.points[i][j] = [int(new_x), int(new_y)]
-            
+
+            # find the minimal box that contains all the points
             x_min = self.next_frame.shape[1] + 1
             y_min = self.next_frame.shape[0] + 1
             x_max = -1
             y_max = -1
+            center = [0, 0]
             for j, point in enumerate(self.points[i]):
-                cv2.circle(frame_copy, (point[0], point[1]), 4, (0, 255, 0), -1)
                 x, y = point
                 x_min = min(x_min, x)
                 y_min = min(y_min, y)
                 x_max = max(x_max, x)
                 y_max = max(y_max, y)
-            
-            center = [(x_min + x_max) / 2, (y_min + y_max) / 2]
+                center[0] += x
+                center[1] += y
+                cv2.circle(frame_copy, (point[0], point[1]), 4, (0, 255, 0), -1)
+            center[0] /= len(self.points[i])
+            center[1] /= len(self.points[i])
             cv2.circle(frame_copy, (int(center[0]), int(center[1])), 8, (255, 0, 0), -1)
+            cv2.rectangle(frame_copy, (x_min, y_min), (x_max, y_max), (255, 0, 0), 4)
 
+            # find the motion detector box with the center closest to the edges of the box
+            # but not any box is fine, it must contain the center of the points found
             bg = BGSUB.apply(self.next_frame_color)
             bg = det.preprocess(bg)
             new_boxes = det.extract_boxes(bg)
+            box_index = -1
+            min_distance = -1
+            for j, new_box in enumerate(new_boxes):
+                new_center = [(new_box[0] + new_box[2]) / 2, (new_box[1] + new_box[3]) / 2]
+                distance = math.sqrt((new_center[0] - center[0]) ** 2 + (new_center[1] - center[1]) ** 2)
+                if distance < min_distance or min_distance == -1:
+                    if new_box[0] <= center[0] <= new_box[2] and new_box[1] <= center[1] <= new_box[3]:
+                        min_distance = distance
+                        box_index = j
 
-            for box in new_boxes:
-                x, y, x2, y2 = box
-                if center[0] >= x and center[0] <= x2 and center[1] >= y and center[1] <= y2:
-                    # maybe instead of just substituting the box
-                    # I can take move the box of before with the averaged flow of all points
-                    # and then increase or decrease the coordinates of the edges according to the size of the box found with detector
-                    self.boxes[i] = box
-                    cv2.rectangle(frame_copy, (x, y), (x2, y2), (255, 0, 0), 4)
-                    success[i] = True
-                    break
+            if box_index == -1:
+                # means no motion detector box was suitable
+                success[i] = False
+                
+                # compute the box as the mean between the old box and the new surrounding box
+                # x1 = self.boxes[i][0]
+                # y1 = self.boxes[i][1]
+                # x2 = self.boxes[i][2]
+                # y2 = self.boxes[i][3]
+                # old_box_factor = 0.6
+                # points_box_factor = 0.4
+                # mean_x1 = int(points_box_factor*x_min + old_box_factor*x1)
+                # mean_y1 = int(points_box_factor*y_min + old_box_factor*y1)
+                # mean_x2 = int(points_box_factor*x_max + old_box_factor*x2)
+                # mean_y2 = int(points_box_factor*y_max + old_box_factor*y2)
+                # cv2.rectangle(frame_copy, (mean_x1, mean_y1), (mean_x2, mean_y2), (0, 255, 255), 4)
+                # self.boxes[i] = [mean_x1, mean_y1, mean_x2, mean_y2]
+
+                # # resample the points that are not inside of the box
+                # for j, point in enumerate(self.points[i]):
+                #     x, y = point
+                #     if not mean_x1 <= x <= mean_x2 or not mean_y1 <= y <= mean_y2:
+                #         self.points[i][j] = self.sample_points(self.boxes[i], single_point_resample=True)
             
-            # resample the points that are not inside the bounding box
-            # maybe if more than a percent of points are outside the declare tracking lost
-            for j, point in enumerate(self.points[i]):
+            if box_index != -1:
+                # means that a motion detector box was found
+                success[i] = True
+
+                # the new box size will be the mean between the surrounding box size, the previous box size and the motion detector box size
                 x1 = self.boxes[i][0]
                 y1 = self.boxes[i][1]
                 x2 = self.boxes[i][2]
                 y2 = self.boxes[i][3]
-                if point[0] < x1 or point[0] > x2 or point[1] < y1 or point[1] > y2:
-                    self.points[i][j] = self.sample_points(self.boxes[i], single_point_resample=True)
+                new_x1 = new_boxes[box_index][0]
+                new_y1 = new_boxes[box_index][1]
+                new_x2 = new_boxes[box_index][2]
+                new_y2 = new_boxes[box_index][3]
+                cv2.rectangle(frame_copy, (new_x1, new_y1), (new_x2, new_y2), (0, 0, 255), 4)
+                motion_box_factor = 0.35
+                points_box_factor = 0.25
+                old_box_factor = 0.4
+                mean_x1 = int(points_box_factor*x_min + old_box_factor*x1 + motion_box_factor*new_x1)
+                mean_y1 = int(points_box_factor*y_min + old_box_factor*y1 + motion_box_factor*new_y1)
+                mean_x2 = int(points_box_factor*x_max + old_box_factor*x2 + motion_box_factor*new_x2)
+                mean_y2 = int(points_box_factor*y_max + old_box_factor*y2 + motion_box_factor*new_y2)
+                cv2.rectangle(frame_copy, (mean_x1, mean_y1), (mean_x2, mean_y2), (0, 255, 0), 4)
+
+                self.boxes[i] = [mean_x1, mean_y1, mean_x2, mean_y2]
+            
+                # resample the points that are not inside of the box
+                for j, point in enumerate(self.points[i]):
+                    x, y = point
+                    if not mean_x1 <= x <= mean_x2 or not mean_y1 <= y <= mean_y2:
+                        self.points[i][j] = self.sample_points(self.boxes[i], single_point_resample=True)
 
         cv2.imshow('tracker', frame_copy)
         return success
