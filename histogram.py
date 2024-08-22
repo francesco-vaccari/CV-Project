@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 
 colors = ('b', 'g', 'r')
 COMP_METHOD = cv.HISTCMP_CORREL
-def extract_histograms(frame, box):
+def get_histogram(frame, box):
     x, y, h, w = box
 
     mask = np.zeros(frame.shape[:2], np.uint8)
@@ -18,7 +18,10 @@ def extract_histograms(frame, box):
 
     return histograms
 
-def compareToHistory (toCompare, history):
+def compare_histogram_to_history(toCompare, history):
+    if len(history) == 0:
+        return 0
+    
     diff = []
 
     for c, col in enumerate(colors):
@@ -33,7 +36,6 @@ def compareToHistory (toCompare, history):
     for i, dif in enumerate(diff) :
         error += dif
     error = error / len(diff)
-    #print(error)
 
     return error
 

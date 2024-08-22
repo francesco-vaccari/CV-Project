@@ -7,18 +7,7 @@ import enum
 import math
 
 annotations_folder = 'annotations'
-Status = enum.Enum('Status', ['ACTIVE', 'LOST', 'WAITING','OVERLAPPING', 'STATIC'])
-WAIT_TIME = 10
-MAX_OVERLAP_TIME = 30
-MAX_OVERLAP_AREA = 0.5
-MAX_STATIC_TIME = 50
-MAX_STATIC_ERROR = 20
-FRAMES_BEFORE_CHECKING = 10
 BGSUB = det.BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
-
-def boxArea(box):
-    area = abs(box[2]-box[0])*abs(box[3]-box[1])
-    return area
 
 class OpenCVTracker:
     def __init__(self, tracker_name, initial_frame, initial_boxes):
@@ -41,204 +30,143 @@ class OpenCVTracker:
         elif tracker_name == "Vit":
             self.tracker = cv2.TrackerVit
 
+        self.history_length = 48
+        self.tracker_histogram_history = []
+        self.tracker_position_history = []
+        self.tracker_box_size_history = []
+
+        self.tracker_ready = [0]*len(initial_boxes)
         self.tracker_instances = []
-        self.color_histogram_history = []
-        self.box_size_history = []
-        self.waitouts = []
-        self.status = []
-        self.static_time =[]
-        self.center_history = []
-        self.frames_toSkip = FRAMES_BEFORE_CHECKING
         for i, box in enumerate(initial_boxes):
             self.tracker_instances.append(self.tracker.create())
-            
             self.tracker_instances[i].init(initial_frame, box)
-
-            self.status.append(Status.ACTIVE)
-
-            self.color_histogram_history.append([])
-            self.box_size_history.append([])
-            self.waitouts.append(0)
-            self.static_time.append(0)
-            self.center_history.append([])
+            self.tracker_histogram_history.append([])
+            self.tracker_position_history.append([])
+            self.tracker_box_size_history.append([])
+        for i, box in enumerate(initial_boxes):
+            self.update_history(i, box, initial_frame)
     
     def update(self, frame):
         results = []
         boxes = []
 
-        for i, instance in enumerate(self.tracker_instances):
-            if self.status[i] == Status.WAITING:
-                if self.waitouts[i] == 0:
-                    success, box = self.reinitialize_tracker(frame, i)
-                    print(
-                        "Attempt after WAIT, result " + str(self.status[i]) + " from " + str(i) + " waitout is " + str(
-                            self.waitouts[i]) + " \n")
-                    if success:
-                        self.update_tracker(frame,i,box)
-                else:
-                    self.waitouts[i] -= 1
-                    success = False
-                    box = (0,0,0,0)
-            elif self.status[i] == Status.LOST or self.status[i] == Status.OVERLAPPING:
-                success, box = self.reinitialize_tracker(frame, i)
-                print(
-                    "Attempt after CHECKS, result " + str(self.status[i]) + " from " + str(i) + " \n")
-                if success:
-                    self.update_tracker(frame, i, box)
+        for i, tracker_instance in enumerate(self.tracker_instances):
+            if self.tracker_ready[i] == 0:
+                success, box = tracker_instance.update(frame)
+                results.append(success)
+                boxes.append(box)
             else:
-                success, box = instance.update(frame)
-                if not success:
-                    self.status[i] = Status.LOST
-                    success, box = self.reinitialize_tracker(frame, i)
-                    print("Immediate Attempt, result " + str(self.status[i]) + " from " + str(i) + "\n")
-                if success:
-                    self.update_tracker(frame, i, box)
-            results.append(success)
-            boxes.append(box)
-        if self.frames_toSkip == 0:
-            self.check_Static(boxes, results)
-            self.check_Overlap(boxes, results)
-        else:
-            self.frames_toSkip -= 1
+                results.append(False)
+                boxes.append((0,0,0,0))
+        
+        for i, res in enumerate(results):
+            if res:
+                if self.is_tracking_lost(boxes[i], frame):
+                    self.tracker_ready[i] += 1
+                    results[i] = False
+                else:
+                    self.update_history(i, boxes[i], frame)
+            if not res:
+                bg = BGSUB.apply(frame)
+                bg = det.preprocess(bg)
+                motion_boxes = det.extract_boxes(bg)
+                result, box = self.match_boxes(i, motion_boxes, frame)
+                print('Matching box found for tracker ' + str(i) + ': ' + str(box))
+                if result:
+                    self.tracker_instances[i].init(frame, box)
+                    self.tracker_ready[i] = 0
+                    results[i] = True
+                    boxes[i] = box
+                    frame_copy  = frame.copy()
+                    cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
+                    cv2.imshow('tracker', frame_copy)
+        
+        results, boxes = self.handle_overlapping(results, boxes)
         
         return results, boxes
-    
-    def update_tracker(self, frame, i, box):
-        # receives bounding box surrounding the object in the frame and the index of the tracker that found it
 
-        # if the tracker is successful, we should update the tracker with the new frame and bounding box
-        # to build a history of the color histograms or feature points
-        # or any other information that can help finding again the object if the tracker loses it
-
-        center = ((box[0]+box[2])/2, (box[1]+box[3])/2)
-
-        self.color_histogram_history[i].append(his.extract_histograms(frame, box))  # something like this
-        self.box_size_history[i].append(boxArea(box))
-        self.center_history[i].append(center)
-        # self.feature_points_history[i] = [] # something like this
-
-    def reinitialize_tracker(self, frame, i):
-        # receives the frame and the index of the tracker that lost the object
-
-        # if a tracker loses the object, we should look for it in the frame and reinitialize the tracker
-        # we can use a color histogram and the average size of the bounding box previous to losing it to find the object
-        # or we can use feature points to find the object (SIFT?)
-
-        #color_history = self.color_histogram_history[i] # something like this
-        #features_history = self.feature_points_history[i] # something like this
-
-        # apply motion detection
+    def is_tracking_lost(self, box, frame): # check if the bounding box tracked contains some movement
         bg = BGSUB.apply(frame)
         bg = det.preprocess(bg)
-        new_boxes = det.extract_boxes(bg)
-        for j, box in enumerate(new_boxes):
-            x1, y1, x2, y2 = box
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 4)
-        frame2 = frame
-        frame2 = cv2.resize(frame2, (800, 800))
-        cv2.imshow("Snap", frame2)
+        motion_boxes = det.extract_boxes(bg)
 
-        min_diff = -1
-        meansize = 0
-        print("Last boxsize was" + str(self.box_size_history[i][-1]))
-        for s, size in enumerate(self.box_size_history[i]):
-            meansize += size
-        meansize = meansize / s
+        if len(motion_boxes) == 0:
+            return True
 
-        # THERE'S PROBABLY A PROBLEM HERE
-        for b, box in enumerate(new_boxes) :
-            boxsize = boxArea(box) # I would guess that boxsize calculations are
-            # broken at some point
-            #print(str(boxsize)+ " against "+ str(meansize))
-            if ((meansize*0.5)<=boxsize<=(meansize*1.5)): # this is also a good candidate to be broken
-                last_diff = his.compareToHistory(his.extract_histograms(frame, box), self.color_histogram_history[i])
-                # I already checked Histograms comparison and it seems to work fine
-                #print(str(last_diff)+" is the error of the histograms")
-                if (last_diff < min_diff or min_diff == -1):
-                    min_diff = last_diff # also this search for a minimum seems to be reliable
-                    min_b = b
-            #print(str(min_diff)+" is current minimum")
+        x1, y1, w, h = box
+        x2 = x1 + w
+        y2 = y1 + h
 
-        if min_diff == -1 : # somehow we get inside this way too often, mainly cause the programs calculates areas to
-            # be very small, even when they are pretty big
-            self.status[i] = Status.WAITING
-            self.waitouts[i] = WAIT_TIME
+        for motion_box in motion_boxes:
+            x1_m, y1_m, x2_m, y2_m = motion_box
+            # if any corner is inside the other box then there is movement
+            if x1_m <= x1 <= x2_m and y1_m <= y1 <= y2_m:
+                return False
+            if x1_m <= x2 <= x2_m and y1_m <= y1 <= y2_m:
+                return False
+            if x1_m <= x1 <= x2_m and y1_m <= y2 <= y2_m:
+                return False
+            if x1_m <= x2 <= x2_m and y1_m <= y2 <= y2_m:
+                return False
+            if x1 <= x1_m <= x2 and y1 <= y1_m <= y2:
+                return False
+            if x1 <= x2_m <= x2 and y1 <= y1_m <= y2:
+                return False
+            if x1 <= x1_m <= x2 and y1 <= y2_m <= y2:
+                return False
+            if x1 <= x2_m <= x2 and y1 <= y2_m <= y2:
+                return False
+        
+        return True
+
+    def update_history(self, tracker_index, box, frame): # update history for tracker tracker_index with color, position and size
+        if len(self.tracker_histogram_history[tracker_index]) == self.history_length:
+            self.tracker_histogram_history[tracker_index].pop(0)
+            self.tracker_position_history[tracker_index].pop(0)
+            self.tracker_box_size_history[tracker_index].pop(0)
+        self.tracker_histogram_history[tracker_index].append(his.get_histogram(frame, box))
+        self.tracker_position_history[tracker_index].append([box[0] + box[2] / 2, box[1] + box[3] / 2])
+        self.tracker_box_size_history[tracker_index].append([box[2], box[3]])
+
+    def match_boxes(self, tracker_index, matching_boxes, frame):
+        hist_factor = 0.7
+        pos_factor = 0.2
+        size_factor = 0.1
+
+        match_score = [0]*len(matching_boxes)
+        frames_passed = self.tracker_ready[tracker_index] # frames passed since the tracking has been lost
+        for i, box in enumerate(matching_boxes):
+            box_histogram = his.get_histogram(frame, box)
+            x, y, w, h = box[0], box[1], box[2]-box[0], box[3]-box[1]
+            box_center = [x + w / 2, y + h / 2]
+
+            histogram_comparison = his.compare_histogram_to_history(box_histogram, self.tracker_histogram_history[tracker_index])
+            
+            position_comparison = 0
+            for position in self.tracker_position_history[tracker_index]:
+                diff = math.sqrt((box_center[0] - position[0]) ** 2 + (box_center[1] - position[1]) ** 2)
+                position_comparison += diff
+            position_comparison /= len(self.tracker_position_history[tracker_index])
+            position_comparison = position_comparison / (frames_passed + 1)
+            
+            size_comparison = 0
+            for size in self.tracker_box_size_history[tracker_index]:
+                diff = math.sqrt((w - size[0]) ** 2 + (h - size[1]) ** 2)
+                size_comparison += diff
+            size_comparison /= len(self.tracker_box_size_history[tracker_index])
+
+            match_score[i] = hist_factor * histogram_comparison + pos_factor * position_comparison + size_factor * size_comparison
+        
+        if len(matching_boxes) == 0:
             return False, (0,0,0,0)
-        else:
-            print("Found Rect "+str(new_boxes[min_b])+" area is "+str(abs(new_boxes[min_b][2]-new_boxes[min_b][0])*abs(
-                new_boxes[min_b][3]-new_boxes[min_b][1]))+"\n")
-            self.tracker_instances[i].init(frame, new_boxes[min_b])
+        
+        best_match = np.argmin(match_score)
+        x, y, x2, y2 = matching_boxes[best_match]
+        return True, [x, y, x2-x, y2-y]
 
-            self.status[i] = Status.ACTIVE
-            return True, new_boxes[min_b]
-
-    def check_Overlap(self, boxes, results):
-        for i in range(0, len(boxes)):
-            for j in range(i+1, len(boxes)):
-
-                if results[i] and results[j]:
-
-                    first = boxes[i]
-                    second = boxes[j]
-
-                    if (((first[0] <= second[0] <= first[0] + first[2]) and (first[1] <= second[1] <= first[1] +
-                         first[3])) or ((first[0] <= second[0] <=first[0] + first[2]) and (first[1] <= second[1] +
-                         second[3] <= first[1] + first[3])) or ((first[0] <= second[0] + second[2] <= first[0] +
-                         first[2])  and (first[1] <= second[1] <= first[1] + first[3])) or ((first[0] <= second[0] +
-                         second[2] <= first[0] + first[2]) and (first[1] <= second[1] + second[3]<= first[1] + first[3]))
-                         or ((second[0] <= first[0] <= second[0] + second[2]) and (second[1] <= first[1] <= second[1] +
-                         second[3])) or ((second[0] <= first[0] <=second[0] + second[2]) and (second[1] <= first[1] +
-                         first[3] <= second[1] + second[3])) or ((second[0] <= first[0] + first[2] <= second[0] +
-                         second[2])  and (second[1] <= first[1] <= second[1] + second[3])) or ((second[0] <= first[0] +
-                         first[2] <= second[0] + second[2]) and (second[1] <= first[1] + first[3]<= second[1] + second[3]))
-                         ):
-
-                        x1 = max(first[0], second[0])
-                        y1 = max(first[1], second[1])
-                        x2 = min(first[2], second[2])
-                        y2 = min(first[3], second[3])
-                        third = (x1,x2,y1,y2)
-
-                        area1 = boxArea(first)
-                        area2 = boxArea(second)
-                        area3 = boxArea(third)
-
-                        if area3 == 0 :
-                            #print("No Overlap here."+ str(i)+ " "+ str(j) + "\n")
-                            break
-                        elif area1 == 0 or area2 == 0:
-                            #print("Somehow, an area was zero. "+ str(i)+ " "+ str(j) + "\n")
-                            break
-
-                        if (area3 / area1) >= MAX_OVERLAP_AREA or (area3 / area2) >= MAX_OVERLAP_AREA:
-                            if area1 < area2:
-                                self.status[i] = Status.OVERLAPPING
-                                print(str(i)+ " Overlaps on "+str(j)+"\n")
-                            else:
-                                self.status[j] = Status.OVERLAPPING
-                                print(str(j) + " Overlaps on " + str(i) + "\n")
-                        elif self.status[i]==Status.OVERLAPPING or self.status[j] == Status.OVERLAPPING:
-                            self.status[i] = Status.ACTIVE
-                            self.status[j] = Status.ACTIVE
-
-    def check_Static(self, boxes, results):
-        for i, box in enumerate(boxes):
-            if results[i]:
-                center = (int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2))
-                old_center = self.center_history[i][-1]
-                if abs(old_center[0] - center[0]) <= MAX_STATIC_ERROR and abs(
-                        old_center[1] - center[1]) <= MAX_STATIC_ERROR:
-
-                    if self.static_time == MAX_STATIC_TIME:
-                        print("STATIC "+str(i)+" eliminated")
-                        self.status[i] = Status.LOST
-                        self.static_time[i] = 0
-                    else:
-                        self.static_time[i] += 1
-                        self.status[i] = Status.STATIC
-                else:
-                    self.static_time = 0
-                    self.status = Status.ACTIVE
+    def handle_overlapping(self, results, boxes):
+        # if boxes are overlapping we can choose which one is the best match and discard the others
+        return results, boxes
 
 
 

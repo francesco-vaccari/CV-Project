@@ -23,7 +23,7 @@ for i in range(len(annotation)):
 
 
 tracker = OpenCVTracker('CSRT', frame, initial_boxes)
-#tracker = DenseOpticalFlowTracker('DISOpticalFlow', frame, initial_boxes, points_sampling="gaussian25")
+# tracker = DenseOpticalFlowTracker('DISOpticalFlow', frame, initial_boxes, points_sampling="gaussian25")
 #tracker = PyrLKOpticalFlowTracker(frame, initial_boxes)
 
 
@@ -38,7 +38,6 @@ while cap.isOpened():
         if result[i]:
             x, y, w, h = [int(i) for i in boxes[i]]
             cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 4)
-
 
     cv2.imshow('frame', frame)
 
