@@ -11,9 +11,14 @@ Status = enum.Enum('Status', ['ACTIVE', 'LOST', 'WAITING','OVERLAPPING', 'STATIC
 WAIT_TIME = 10
 MAX_OVERLAP_TIME = 30
 MAX_OVERLAP_AREA = 0.5
-MAX_STATIC_TIME = 30
-MAX_STATIC_ERROR = 10
+MAX_STATIC_TIME = 50
+MAX_STATIC_ERROR = 20
+FRAMES_BEFORE_CHECKING = 10
 BGSUB = det.BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
+
+def boxArea(box):
+    area = abs(box[2]-box[0])*abs(box[3]-box[1])
+    return area
 
 class OpenCVTracker:
     def __init__(self, tracker_name, initial_frame, initial_boxes):
@@ -43,6 +48,7 @@ class OpenCVTracker:
         self.status = []
         self.static_time =[]
         self.center_history = []
+        self.frames_toSkip = FRAMES_BEFORE_CHECKING
         for i, box in enumerate(initial_boxes):
             self.tracker_instances.append(self.tracker.create())
             
@@ -89,9 +95,11 @@ class OpenCVTracker:
                     self.update_tracker(frame, i, box)
             results.append(success)
             boxes.append(box)
-
-        self.check_Static(boxes, results)
-        self.check_Overlap(boxes, results)
+        if self.frames_toSkip == 0:
+            self.check_Static(boxes, results)
+            self.check_Overlap(boxes, results)
+        else:
+            self.frames_toSkip -= 1
         
         return results, boxes
     
@@ -105,7 +113,7 @@ class OpenCVTracker:
         center = ((box[0]+box[2])/2, (box[1]+box[3])/2)
 
         self.color_histogram_history[i].append(his.extract_histograms(frame, box))  # something like this
-        self.box_size_history[i].append(abs(box[0]-box[2])*abs(box[1]-box[3]))
+        self.box_size_history[i].append(boxArea(box))
         self.center_history[i].append(center)
         # self.feature_points_history[i] = [] # something like this
 
@@ -119,29 +127,46 @@ class OpenCVTracker:
         #color_history = self.color_histogram_history[i] # something like this
         #features_history = self.feature_points_history[i] # something like this
 
+        # apply motion detection
         bg = BGSUB.apply(frame)
         bg = det.preprocess(bg)
         new_boxes = det.extract_boxes(bg)
+        for j, box in enumerate(new_boxes):
+            x1, y1, x2, y2 = box
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 4)
+        frame2 = frame
+        frame2 = cv2.resize(frame2, (800, 800))
+        cv2.imshow("Snap", frame2)
 
         min_diff = -1
         meansize = 0
+        print("Last boxsize was" + str(self.box_size_history[i][-1]))
         for s, size in enumerate(self.box_size_history[i]):
             meansize += size
-        meansize = meansize / len(self.box_size_history[i])
+        meansize = meansize / s
 
+        # THERE'S PROBABLY A PROBLEM HERE
         for b, box in enumerate(new_boxes) :
-            last_diff = his.compareToHistory(his.extract_histograms(frame, box), self.color_histogram_history[i])
-            boxsize = abs(box[0]-box[2])*abs(box[1]-box[3])
-            if (last_diff < min_diff or min_diff == -1) and ((meansize*0.5)<=boxsize<=(meansize*2)):
-                min_diff = last_diff
-                min_b = b
+            boxsize = boxArea(box) # I would guess that boxsize calculations are
+            # broken at some point
+            #print(str(boxsize)+ " against "+ str(meansize))
+            if ((meansize*0.5)<=boxsize<=(meansize*1.5)): # this is also a good candidate to be broken
+                last_diff = his.compareToHistory(his.extract_histograms(frame, box), self.color_histogram_history[i])
+                # I already checked Histograms comparison and it seems to work fine
+                #print(str(last_diff)+" is the error of the histograms")
+                if (last_diff < min_diff or min_diff == -1):
+                    min_diff = last_diff # also this search for a minimum seems to be reliable
+                    min_b = b
+            #print(str(min_diff)+" is current minimum")
 
-        if min_diff == -1 :
+        if min_diff == -1 : # somehow we get inside this way too often, mainly cause the programs calculates areas to
+            # be very small, even when they are pretty big
             self.status[i] = Status.WAITING
             self.waitouts[i] = WAIT_TIME
             return False, (0,0,0,0)
         else:
-            print("Found Rect "+str(new_boxes[min_b])+" area is "+str(new_boxes[min_b][2]*new_boxes[min_b][3])+"\n")
+            print("Found Rect "+str(new_boxes[min_b])+" area is "+str(abs(new_boxes[min_b][2]-new_boxes[min_b][0])*abs(
+                new_boxes[min_b][3]-new_boxes[min_b][1]))+"\n")
             self.tracker_instances[i].init(frame, new_boxes[min_b])
 
             self.status[i] = Status.ACTIVE
@@ -156,7 +181,7 @@ class OpenCVTracker:
                     first = boxes[i]
                     second = boxes[j]
 
-                    if not(((first[0] <= second[0] <= first[0] + first[2]) and (first[1] <= second[1] <= first[1] +
+                    if (((first[0] <= second[0] <= first[0] + first[2]) and (first[1] <= second[1] <= first[1] +
                          first[3])) or ((first[0] <= second[0] <=first[0] + first[2]) and (first[1] <= second[1] +
                          second[3] <= first[1] + first[3])) or ((first[0] <= second[0] + second[2] <= first[0] +
                          first[2])  and (first[1] <= second[1] <= first[1] + first[3])) or ((first[0] <= second[0] +
@@ -167,34 +192,34 @@ class OpenCVTracker:
                          second[2])  and (second[1] <= first[1] <= second[1] + second[3])) or ((second[0] <= first[0] +
                          first[2] <= second[0] + second[2]) and (second[1] <= first[1] + first[3]<= second[1] + second[3]))
                          ):
-                        break
 
-                    x1 = max(first[0], second[0])
-                    y1 = max(first[1], second[1])
-                    x2 = min(first[2], second[2])
-                    y2 = min(first[3], second[3])
+                        x1 = max(first[0], second[0])
+                        y1 = max(first[1], second[1])
+                        x2 = min(first[2], second[2])
+                        y2 = min(first[3], second[3])
+                        third = (x1,x2,y1,y2)
 
-                    area1 = abs(first[2] - first[0]) * abs(first[3] - first[1])
-                    area2 = abs(second[2] - second[0]) * abs(second[3] - second[1])
-                    area3 = abs(x2 - x1) * abs(y2 - y1)
+                        area1 = boxArea(first)
+                        area2 = boxArea(second)
+                        area3 = boxArea(third)
 
-                    if area3 == 0 :
-                        #print("No Overlap here."+ str(i)+ " "+ str(j) + "\n")
-                        break
-                    elif area1 == 0 or area2 == 0:
-                        #print("Somehow, an area was zero. "+ str(i)+ " "+ str(j) + "\n")
-                        break
+                        if area3 == 0 :
+                            #print("No Overlap here."+ str(i)+ " "+ str(j) + "\n")
+                            break
+                        elif area1 == 0 or area2 == 0:
+                            #print("Somehow, an area was zero. "+ str(i)+ " "+ str(j) + "\n")
+                            break
 
-                    if area3 / area1 >= MAX_OVERLAP_AREA or area3 / area2 >= MAX_OVERLAP_AREA:
-                        if area1 < area2:
-                            self.status[i] = Status.OVERLAPPING
-                            print(str(i)+ " Overlaps on "+str(j)+"\n")
-                        else:
-                            self.status[j] = Status.OVERLAPPING
-                            print(str(j) + " Overlaps on " + str(i) + "\n")
-                    elif self.status[i]==Status.OVERLAPPING or self.status[j] == Status.OVERLAPPING:
-                        self.status[i] = Status.ACTIVE
-                        self.status[j] = Status.ACTIVE
+                        if (area3 / area1) >= MAX_OVERLAP_AREA or (area3 / area2) >= MAX_OVERLAP_AREA:
+                            if area1 < area2:
+                                self.status[i] = Status.OVERLAPPING
+                                print(str(i)+ " Overlaps on "+str(j)+"\n")
+                            else:
+                                self.status[j] = Status.OVERLAPPING
+                                print(str(j) + " Overlaps on " + str(i) + "\n")
+                        elif self.status[i]==Status.OVERLAPPING or self.status[j] == Status.OVERLAPPING:
+                            self.status[i] = Status.ACTIVE
+                            self.status[j] = Status.ACTIVE
 
     def check_Static(self, boxes, results):
         for i, box in enumerate(boxes):
@@ -205,6 +230,7 @@ class OpenCVTracker:
                         old_center[1] - center[1]) <= MAX_STATIC_ERROR:
 
                     if self.static_time == MAX_STATIC_TIME:
+                        print("STATIC "+str(i)+" eliminated")
                         self.status[i] = Status.LOST
                         self.static_time[i] = 0
                     else:
