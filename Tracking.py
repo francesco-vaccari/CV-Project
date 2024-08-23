@@ -2,8 +2,7 @@ import cv2
 import numpy as np
 import histogram as his
 import Detection as det
-import Annotation
-import enum
+from yolo_model import yolo_model
 import math
 
 annotations_folder = 'annotations'
@@ -764,4 +763,108 @@ class PyrLKOpticalFlowTracker:
 
 class KalmanFilterTracker:
     def __init__(self, frame, initial_boxes):
-        pass
+        self.tracker_ready = [0]*len(initial_boxes)
+        self.boxes = initial_boxes
+        self.tracker_instances = [None]*len(initial_boxes)
+        for i, box in enumerate(initial_boxes):
+            self.reset_tracker_instance(i, box)
+        
+        self.yolo = yolo_model()
+        self.frame = frame
+        self.yolo_box_measure_error_threshold = 1.2 # x means the box matched can be distant at most x of the box size
+    
+    def reset_tracker_instance(self, tracker_index, box):
+        kalman = cv2.KalmanFilter(4, 2)
+        kalman.measurementMatrix = np.array(
+            [[1, 0, 0, 0],
+            [0, 1, 0, 0]], np.float32)
+        kalman.transitionMatrix = np.array(
+            [[1, 0, 1, 0],
+            [0, 1, 0, 1],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]], np.float32)
+        kalman.processNoiseCov = np.array(
+            [[1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]], np.float32) * 0.03
+        
+        x, y, w, h = box
+        center_x = x + w / 2
+        center_y = y + h / 2
+        kalman.statePre = np.array([[center_x], [center_y], [0], [0]], np.float32)
+        kalman.statePost = np.array([[center_x], [center_y], [0], [0]], np.float32)
+        
+        self.tracker_instances[tracker_index] = kalman
+    
+    def update(self, frame):
+        frame_copy = frame.copy()
+        results = [False]*len(self.tracker_instances)
+
+        yolo_boxes = self.yolo.predict(frame)
+
+        for i, kalman in enumerate(self.tracker_instances):
+            if self.tracker_ready[i] < 36:
+                prediction = kalman.predict()
+
+                pred_x, pred_y = prediction[0][0], prediction[1][0]
+                cv2.circle(frame_copy, (int(pred_x), int(pred_y)), 4, (255, 0, 0), -1)
+
+                res, obs, box = self.get_observation(yolo_boxes, (pred_x, pred_y), self.boxes[i])
+
+                if res:
+                    measurement = np.array([[obs[0]], [obs[1]]], np.float32)
+                    kalman.correct(measurement)
+
+                    results[i] = True
+                    self.tracker_ready[i] = 0
+                    self.boxes[i] = box
+
+                    cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
+                else:
+                    # skip the correction step
+                    
+                    results[i] = True
+
+                    # move the box around the center predicted with same size of before
+                    prev_w = self.boxes[i][2]
+                    prev_h = self.boxes[i][3]
+                    new_x = int(pred_x - prev_w / 2)
+                    new_y = int(pred_y - prev_h / 2)
+                    box = [new_x, new_y, prev_w, prev_h]
+                    self.boxes[i] = box
+
+                    cv2.rectangle(frame_copy, (new_x, new_y), (new_x+prev_w, new_y+prev_h), (0, 0, 255), 4)
+            else:
+                # tracker is lost
+                # try to match with a new box
+                # and reset tracker
+                pass
+
+            self.tracker_ready[i] += 1
+
+        cv2.imshow('tracker', frame_copy)
+        return results, self.boxes
+
+    def get_observation(self, boxes, center, old_box):
+        if len(boxes) == 0:
+            return False, (0,0), (0,0,0,0)
+        
+        old_box_size = (old_box[2] + old_box[3]) / 2
+
+        min_distance = -1
+        best_box = None
+        best_box_center = None
+        for box in boxes:
+            x1, y1, x2, y2 = box
+            box_center = [int((x1 + x2) / 2), int((y1 + y2) / 2)]
+            distance = math.sqrt((center[0] - box_center[0]) ** 2 + (center[1] - box_center[1]) ** 2)
+            if distance < min_distance or min_distance == -1:
+                min_distance = distance
+                best_box = [int(x1), int(y1), int(x2-x1), int(y2-y1)]
+                best_box_center = box_center
+
+        if min_distance > old_box_size * self.yolo_box_measure_error_threshold:
+            return False, (0,0), (0,0,0,0)
+        
+        return True, best_box_center, best_box

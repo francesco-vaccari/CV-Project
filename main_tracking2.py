@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from Annotation import Annotation
-from Tracking import OpenCVTracker, DenseOpticalFlowTracker, PyrLKOpticalFlowTracker
+from Tracking import OpenCVTracker, DenseOpticalFlowTracker, PyrLKOpticalFlowTracker, KalmanFilterTracker
 
 video = 'videos/refined2_short.mp4'
 annotations_folder = 'annotations'
@@ -24,7 +24,8 @@ for i in range(len(annotation)):
 
 # tracker = OpenCVTracker('CSRT', frame, initial_boxes)
 # tracker = DenseOpticalFlowTracker('FarnebackOpticalFlow', frame, initial_boxes, points_sampling="gaussian25")
-tracker = PyrLKOpticalFlowTracker(frame, initial_boxes, points_sampling="gaussian25")
+# tracker = PyrLKOpticalFlowTracker(frame, initial_boxes, points_sampling="gaussian25")
+tracker = KalmanFilterTracker(frame, initial_boxes)
 
 
 while cap.isOpened():

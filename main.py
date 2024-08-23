@@ -2,8 +2,6 @@ import cv2
 import cv2.bgsegm as bgseg
 import Detection
 from Annotation import Annotation
-from yolov5_test import YOLOv5
-from yolov8_test import YOLOv8
 import tqdm
 import matplotlib.pyplot as plt
 import argparse
