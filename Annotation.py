@@ -45,7 +45,7 @@ class Annotation:
                 annotations.append(player[n_frame])
         return annotations
 
-    def evaluate(self, boxes, n_frame, threshold=0.5):
+    def evaluate(self, boxes, n_frame, threshold=0.9):
         if len(boxes) == 0:
             return 0, 0, []
         
@@ -126,3 +126,147 @@ class Annotation:
         for r in range(len(nums) + 1):
             result.extend([list(comb) for comb in combinations(nums, r)])
         return result
+    
+    def evaluate_tracking(self, predicted_tracks, threshold = 0.5):
+        mota = 0
+        motp = 0
+        total_objects = 0
+        total_matches = 0
+        total_switches = 0
+        total_fragmentations = 0
+        total_iou = 0
+        total_fp = 0
+        total_fn = 0
+
+        for frame in range(len(predicted_tracks)):
+            precision, recall, preds_used = self.evaluate(predicted_tracks[frame], frame, threshold)
+            total_objects += len(self.get_annotation(frame))
+            total_matches += len(preds_used)
+
+            #ID Switches and Fragmentation calculation
+            if frame > 1:
+                prev_frame = frame - 1
+                prev_annotations = self.get_annotation(prev_frame)
+                curr_annotations = self.get_annotation(frame)
+
+                id_switches, fragmentations = self.calculate_id_switches_and_fragmentations(prev_annotations, curr_annotations, preds_used, predicted_tracks[prev_frame], predicted_tracks[frame])
+                total_switches += id_switches
+                total_fragmentations += fragmentations
+
+            tp = len(preds_used)  
+            fn = len(self.get_annotation(frame)) - tp  
+            fp = len(predicted_tracks[frame]) - tp  
+
+            total_fp += fp
+            total_fn += fn
+            
+            for i, j in enumerate(preds_used):
+                annotation_box = [self.get_annotation(frame)[i].x1, self.get_annotation(frame)[i].y1, self.get_annotation(frame)[i].x2, self.get_annotation(frame)[i].y2]
+                x1, y1, x2, y2 = predicted_tracks[frame][j]
+                predicted_box = [x1, y1, x2 + x1, y2 + y1]
+                total_iou += self.calculate_iou(annotation_box, predicted_box)
+
+        try:
+            mota += 1 - (fp + fn + total_switches) / total_objects
+        except ZeroDivisionError:
+            mota += 0
+            
+            
+        try:
+            motp += total_iou / total_matches
+        except ZeroDivisionError:
+            motp += 0
+        
+        return mota, motp, total_switches, total_fragmentations
+    
+    def calculate_id_switches_and_fragmentations(self, prev_annotations, curr_annotations, preds_used, prev_tracks, curr_tracks):
+        id_switches = 0
+        fragmentations = 0
+
+        prev_dict = {i: j for i, j in enumerate(prev_annotations)}
+        curr_dict = {i: j for i, j in enumerate(curr_annotations)}
+
+        for i, j in zip(prev_dict.keys(), preds_used):
+            prev_id = prev_dict[i].player
+            curr_id = curr_dict[j].player
+
+            if prev_id != curr_id:
+                id_switches += 1
+
+            if i not in preds_used:
+                fragmentations += 1
+
+        return id_switches, fragmentations
+    
+    def evaluate_optical_flow(self, flow_sequence):
+        total_displacement_error = 0
+        total_frames = len(flow_sequence)
+
+        for frame in range(total_frames):
+            flow = flow_sequence[frame]
+            annotations = self.get_annotation(frame)
+
+            for i in range(12):
+                x1, y1, x2, y2 = annotations[i].x1, annotations[i].y1, annotations[i].x2, annotations[i].y2
+                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                roi_flow = flow[y1:y2, x1:x2]
+                
+                if roi_flow.size == 0:
+                    #print(f"Empty ROI for frame {frame}, box {i}")
+                    continue
+
+
+                #Calculate the average flow vector in this region
+                mean_flow = np.mean(roi_flow, axis=(0, 1))
+
+                #Calculate expected motion based on bounding box movement (from annotations)
+                if frame < total_frames - 1:
+                    nannotations = self.get_annotation(frame + 1)
+                    nx1, ny1, nx2, ny2 = nannotations[i].x1, nannotations[i].y1, nannotations[i].x2, nannotations[i].y2
+                    if nannotations[i]:
+                        expected_dx = (nx1 + nx2) / 2 - (x1 + x2) / 2
+                        expected_dy = (ny1 + ny2) / 2 - (y1 + y2) / 2
+
+                        #Displacement error between predicted flow and actual movement
+                        displacement_error = np.sqrt((mean_flow[0] - expected_dx)**2 + (mean_flow[1] - expected_dy)**2)
+                        total_displacement_error += displacement_error
+
+        average_displacement_error = total_displacement_error / total_frames
+        return average_displacement_error
+    
+    def evaluate_sparse_optical_flow(self, flow_sequence):
+        total_displacement_error = 0
+        total_points = 0
+
+        for frame in range(len(flow_sequence) - 1):
+            annotations = self.get_annotation(frame)
+            predicted_points = flow_sequence[frame]
+            next_predicted_points = flow_sequence[frame + 1]
+            current_annotations = self.get_annotation(frame)
+            next_annotations = self.get_annotation(frame + 1)
+
+            for i in range(len(predicted_points)):
+                pred_x, pred_y = predicted_points[i]
+                next_pred_x, next_pred_y = next_predicted_points[i]
+
+                # Get the corresponding ground truth points
+                gt_x1, gt_y1, gt_x2, gt_y2 = current_annotations[i].x1, current_annotations[i].y1, current_annotations[i].x2, current_annotations[i].y2
+                next_gt_x1, next_gt_y1, next_gt_x2, next_gt_y2 = next_annotations[i].x1, next_annotations[i].y1, next_annotations[i].x2, next_annotations[i].y2
+
+                # Calculate the ground truth center points
+                gt_center_x = (gt_x1 + gt_x2) / 2
+                gt_center_y = (gt_y1 + gt_y2) / 2
+                next_gt_center_x = (next_gt_x1 + next_gt_x2) / 2
+                next_gt_center_y = (next_gt_y1 + next_gt_y2) / 2
+
+                # Calculate expected motion based on bounding box movement
+                expected_dx = next_gt_center_x - gt_center_x
+                expected_dy = next_gt_center_y - gt_center_y
+
+                # Displacement error between predicted flow and actual movement
+                displacement_error = np.sqrt((next_pred_x - (pred_x + expected_dx))**2 + (next_pred_y - (pred_y + expected_dy))**2)
+                total_displacement_error += displacement_error
+                total_points += 1
+
+        average_displacement_error = total_displacement_error / total_points if total_points > 0 else float('inf')
+        return average_displacement_error
