@@ -199,7 +199,7 @@ class DenseOpticalFlowTracker:
         for i in range(len(self.boxes)):
             self.points.append(self.sample_points(self.boxes[i]))
         
-        self.history_length = 48
+        self.history_length = 36
         self.tracker_histogram_history = []
         self.tracker_position_history = []
         self.tracker_box_size_history = []
@@ -496,7 +496,7 @@ class PyrLKOpticalFlowTracker:
             self.previous_points.append(self.sample_points(self.boxes[i]))
             self.next_points.append(self.previous_points[i])
 
-        self.history_length = 48
+        self.history_length = 36
         self.tracker_histogram_history = []
         self.tracker_position_history = []
         self.tracker_box_size_history = []
@@ -771,7 +771,20 @@ class KalmanFilterTracker:
         
         self.yolo = yolo_model()
         self.frame = frame
-        self.yolo_box_measure_error_threshold = 1.2 # x means the box matched can be distant at most x of the box size
+        self.yolo_box_measure_error_threshold = 1.0 # x means the box matched can be distant at most x of the box size
+
+        self.history_length = 36
+        self.tracker_histogram_history = []
+        self.tracker_position_history = []
+        self.tracker_box_size_history = []
+        for i, box in enumerate(initial_boxes):
+            self.tracker_histogram_history.append([])
+            self.tracker_position_history.append([])
+            self.tracker_box_size_history.append([])
+        for i, box in enumerate(initial_boxes):
+            self.update_history(i, box, frame)
+        
+        self.n_frame_to_reset = 36
     
     def reset_tracker_instance(self, tracker_index, box):
         kalman = cv2.KalmanFilter(4, 2)
@@ -804,7 +817,7 @@ class KalmanFilterTracker:
         yolo_boxes = self.yolo.predict(frame)
 
         for i, kalman in enumerate(self.tracker_instances):
-            if self.tracker_ready[i] < 36:
+            if self.tracker_ready[i] < self.n_frame_to_reset:
                 prediction = kalman.predict()
 
                 pred_x, pred_y = prediction[0][0], prediction[1][0]
@@ -819,6 +832,8 @@ class KalmanFilterTracker:
                     results[i] = True
                     self.tracker_ready[i] = 0
                     self.boxes[i] = box
+
+                    self.update_history(i, box, frame)
 
                     cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
                 else:
@@ -836,15 +851,31 @@ class KalmanFilterTracker:
 
                     cv2.rectangle(frame_copy, (new_x, new_y), (new_x+prev_w, new_y+prev_h), (0, 0, 255), 4)
             else:
-                # tracker is lost
-                # try to match with a new box
-                # and reset tracker
-                pass
+                bg = BGSUB.apply(frame)
+                bg = det.preprocess(bg)
+                motion_boxes = det.extract_boxes(bg)
+                result, box = self.match_boxes(i, motion_boxes, frame)
+                if result:
+                    self.tracker_ready[i] = 0
+                    results[i] = True
+                    self.boxes[i] = box
+                    self.reset_tracker_instance(i, box)
+                    print('Matching box found for tracker ' + str(i) + ': ' + str(box))
+                    cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (0, 255, 255), 4)
 
             self.tracker_ready[i] += 1
 
         cv2.imshow('tracker', frame_copy)
         return results, self.boxes
+    
+    def update_history(self, tracker_index, box, frame):
+        if len(self.tracker_histogram_history[tracker_index]) == self.history_length:
+            self.tracker_histogram_history[tracker_index].pop(0)
+            self.tracker_position_history[tracker_index].pop(0)
+            self.tracker_box_size_history[tracker_index].pop(0)
+        self.tracker_histogram_history[tracker_index].append(his.get_histogram(frame, box))
+        self.tracker_position_history[tracker_index].append([box[0] + box[2] / 2, box[1] + box[3] / 2])
+        self.tracker_box_size_history[tracker_index].append([box[2], box[3]])
 
     def get_observation(self, boxes, center, old_box):
         if len(boxes) == 0:
@@ -868,3 +899,39 @@ class KalmanFilterTracker:
             return False, (0,0), (0,0,0,0)
         
         return True, best_box_center, best_box
+    
+    def match_boxes(self, tracker_index, matching_boxes, frame):
+        hist_factor = 0.7
+        pos_factor = 0.2
+        size_factor = 0.1
+
+        match_score = [0]*len(matching_boxes)
+        frames_passed = self.tracker_ready[tracker_index] # frames passed since the tracking has been lost
+        for i, box in enumerate(matching_boxes):
+            box_histogram = his.get_histogram(frame, box)
+            x, y, w, h = box[0], box[1], box[2]-box[0], box[3]-box[1]
+            box_center = [x + w / 2, y + h / 2]
+
+            histogram_comparison = his.compare_histogram_to_history(box_histogram, self.tracker_histogram_history[tracker_index])
+            
+            position_comparison = 0
+            for position in self.tracker_position_history[tracker_index]:
+                diff = math.sqrt((box_center[0] - position[0]) ** 2 + (box_center[1] - position[1]) ** 2)
+                position_comparison += diff
+            position_comparison /= len(self.tracker_position_history[tracker_index])
+            position_comparison = position_comparison / (frames_passed + 1)
+            
+            size_comparison = 0
+            for size in self.tracker_box_size_history[tracker_index]:
+                diff = math.sqrt((w - size[0]) ** 2 + (h - size[1]) ** 2)
+                size_comparison += diff
+            size_comparison /= len(self.tracker_box_size_history[tracker_index])
+
+            match_score[i] = hist_factor * histogram_comparison + pos_factor * position_comparison + size_factor * size_comparison
+        
+        if len(matching_boxes) == 0:
+            return False, (0,0,0,0)
+        
+        best_match = np.argmin(match_score)
+        x, y, x2, y2 = matching_boxes[best_match]
+        return True, [x, y, x2-x, y2-y]
