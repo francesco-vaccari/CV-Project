@@ -30,9 +30,9 @@ predicted_tracks.append(initial_boxes)
 # PyrLKOpticalFlowTracker uses cv2.SparsePyrLKOpticalFlow
 # KalmanFilterTracker uses cv2.KalmanFilter
 
-# tracker = OpenCVTracker('CSRT', frame, initial_boxes, show)
-# tracker = DenseOpticalFlowTracker('DISOpticalFlow', frame, initial_boxes, points_sampling="gaussian25", show=show)
-# tracker = PyrLKOpticalFlowTracker(frame, initial_boxes, points_sampling="gaussian25", show=show)
+#tracker = OpenCVTracker('CSRT', frame, initial_boxes, show)
+#tracker = DenseOpticalFlowTracker('DISOpticalFlow', frame, initial_boxes, points_sampling="gaussian25", show=show)
+#tracker = PyrLKOpticalFlowTracker(frame, initial_boxes, points_sampling="gaussian25", show=show)
 tracker = KalmanFilterTracker(frame, initial_boxes, show)
 
 progress_bar = tqdm.tqdm(total=int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
@@ -44,17 +44,19 @@ while cap.isOpened():
         break
 
     result, boxes = tracker.update(frame)
-    predicted_tracks.append(boxes)
+    tracker_boxes = []
 
     if show:
         for i in range(len(result)):
             if result[i]:
+                tracker_boxes.append(boxes[i])
                 x, y, w, h = [int(i) for i in boxes[i]]
                 cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 4)
 
         cv2.imshow('frame', frame)
 
     progress_bar.update(1)
+    predicted_tracks.append(tracker_boxes)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
