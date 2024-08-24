@@ -50,6 +50,8 @@ class OpenCVTracker:
     def update(self, frame):
         results = []
         boxes = []
+        match_results = [False]*len(self.tracker_instances)
+        match_boxes = [None]*len(self.tracker_instances)
 
         for i, tracker_instance in enumerate(self.tracker_instances):
             if self.tracker_ready[i] == 0:
@@ -71,18 +73,22 @@ class OpenCVTracker:
                 bg = BGSUB.apply(frame)
                 bg = det.preprocess(bg)
                 motion_boxes = det.extract_boxes(bg)
-                result, box = self.match_boxes(i, motion_boxes, frame)
-                if result:
-                    self.tracker_instances[i].init(frame, box)
+                match_result, match_box = self.match_boxes(i, motion_boxes, frame)
+                match_results[i] = match_result
+                match_boxes[i] = match_box
+        
+        for i, res in enumerate(match_results):
+            if res:
+                if self.check_overlap(match_boxes[i], boxes, ignore_index=i):
+                    self.tracker_instances[i].init(frame, match_boxes[i])
                     self.tracker_ready[i] = 0
                     results[i] = True
-                    boxes[i] = box
+                    boxes[i] = match_boxes[i]
                     frame_copy  = frame.copy()
                     if self.show:
-                        cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
+                        cv2.rectangle(frame_copy, (match_boxes[i][0], match_boxes[i][1]), (match_boxes[i][0]+match_boxes[i][2], match_boxes[i][1]+match_boxes[i][3]), (255, 0, 0), 4)
                         cv2.imshow('tracker', frame_copy)
-        
-        results, boxes = self.handle_overlapping(results, boxes)
+                
         
         return results, boxes
 
@@ -165,11 +171,28 @@ class OpenCVTracker:
         x, y, x2, y2 = matching_boxes[best_match]
         return True, [x, y, x2-x, y2-y]
 
-    def handle_overlapping(self, results, boxes):
-        # if boxes are overlapping we can choose which one is the best match and discard the others
-        return results, boxes
+    def check_overlap(self, box, boxes, ignore_index, overlap_thresh=0.3):
+        x1, y1, w1, h1 = box
+        box_area = w1 * h1
 
+        for i, other_box in enumerate(boxes):
+            if i == ignore_index:
+                continue
+            x2, y2, w2, h2 = other_box
+            other_box_area = w2 * h2
 
+            x_overlap = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
+            y_overlap = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
+            intersect_area = x_overlap * y_overlap
+
+            min_area = min(box_area, other_box_area)
+
+            overlap_ratio = intersect_area / min_area
+
+            if overlap_ratio > overlap_thresh:
+                return False
+
+        return True
 
 
 
@@ -280,6 +303,9 @@ class DenseOpticalFlowTracker:
         frame_copy = frame.copy()
         flow = self.tracker.calc(self.previous_frame, self.next_frame, None)
 
+        match_results = [False]*len(self.boxes)
+        match_boxes = [None]*len(self.boxes)
+
         results = self.update_boxes(flow, frame_copy)
 
         for i, res in enumerate(results):
@@ -293,17 +319,20 @@ class DenseOpticalFlowTracker:
                 bg = BGSUB.apply(frame)
                 bg = det.preprocess(bg)
                 motion_boxes = det.extract_boxes(bg)
-                result, box = self.match_boxes(i, motion_boxes, frame)
-                if result:
+                match_result, match_box = self.match_boxes(i, motion_boxes, frame)
+                match_results[i] = match_result
+                match_boxes[i] = match_box
+        
+        for i, res in enumerate(match_results):
+            if res:
+                if self.check_overlap(match_boxes[i], self.boxes, ignore_index=i):
                     self.tracker_ready[i] = 0
                     results[i] = True
-                    self.boxes[i] = box
+                    self.boxes[i] = match_boxes[i]
                     for j, point in enumerate(self.points[i]):
                         self.points[i][j] = self.sample_points(self.boxes[i], single_point_resample=True)
                     if self.show:
-                        cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
-        
-        results, self.boxes = self.handle_overlapping(results, self.boxes)
+                        cv2.rectangle(frame_copy, (match_boxes[i][0], match_boxes[i][1]), (match_boxes[i][0]+match_boxes[i][2], match_boxes[i][1]+match_boxes[i][3]), (255, 0, 0), 4)
 
         self.previous_frame = self.next_frame
         
@@ -388,9 +417,9 @@ class DenseOpticalFlowTracker:
                     new_y2 = new_boxes[box_index][3]
                     if self.show:
                         cv2.rectangle(frame_copy, (new_x1, new_y1), (new_x2, new_y2), (0, 0, 255), 4)
-                    motion_box_factor = 0.35
-                    points_box_factor = 0.25
-                    old_box_factor = 0.4
+                    motion_box_factor = 0.55
+                    points_box_factor = 0.45
+                    old_box_factor = 0.0
                     mean_x1 = int(points_box_factor*x_min + old_box_factor*x1 + motion_box_factor*new_x1)
                     mean_y1 = int(points_box_factor*y_min + old_box_factor*y1 + motion_box_factor*new_y1)
                     mean_x2 = int(points_box_factor*x_max + old_box_factor*x2 + motion_box_factor*new_x2)
@@ -478,9 +507,29 @@ class DenseOpticalFlowTracker:
         x, y, x2, y2 = matching_boxes[best_match]
         return True, [x, y, x2-x, y2-y]
 
-    def handle_overlapping(self, results, boxes):
-        # if boxes are overlapping we can choose which one is the best match and discard the others
-        return results, boxes
+    def check_overlap(self, box, boxes, ignore_index, overlap_thresh=0.3):
+        x1, y1, w1, h1 = box
+        box_area = w1 * h1
+
+        for i, other_box in enumerate(boxes):
+            if i == ignore_index:
+                continue
+            x2, y2, w2, h2 = other_box
+            other_box_area = w2 * h2
+
+            x_overlap = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
+            y_overlap = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
+            intersect_area = x_overlap * y_overlap
+
+            min_area = min(box_area, other_box_area)
+
+            overlap_ratio = intersect_area / min_area
+
+            if overlap_ratio > overlap_thresh:
+                return False
+
+        return True
+
 
 
 class PyrLKOpticalFlowTracker:
@@ -583,6 +632,8 @@ class PyrLKOpticalFlowTracker:
         self.next_frame_color = frame
         frame_copy = frame.copy()
 
+        match_results = [False]*len(self.boxes)
+        match_boxes = [None]*len(self.boxes)
         results = [False for i in range(len(self.boxes))]
         for i in range(len(self.boxes)):
             input_points = np.array(self.previous_points[i], dtype=np.float32)
@@ -600,17 +651,20 @@ class PyrLKOpticalFlowTracker:
                 bg = BGSUB.apply(frame)
                 bg = det.preprocess(bg)
                 motion_boxes = det.extract_boxes(bg)
-                result, box = self.match_boxes(i, motion_boxes, frame)
-                if result:
+                match_result, match_box = self.match_boxes(i, motion_boxes, frame)
+                match_results[i] = match_result
+                match_boxes[i] = match_box
+        
+        for i, res in enumerate(match_results):
+            if res:
+                if self.check_overlap(match_boxes[i], self.boxes, ignore_index=i):
                     self.tracker_ready[i] = 0
                     results[i] = True
-                    self.boxes[i] = box
+                    self.boxes[i] = match_boxes[i]
                     for j, point in enumerate(self.next_points[i]):
                         self.next_points[i][j] = self.sample_points(self.boxes[i], single_point_resample=True)
                     if self.show:
-                        cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
-        
-        results, self.boxes = self.handle_overlapping(results, self.boxes)
+                        cv2.rectangle(frame_copy, (match_boxes[i][0], match_boxes[i][1]), (match_boxes[i][0]+match_boxes[i][2], match_boxes[i][1]+match_boxes[i][3]), (255, 0, 0), 4)
 
         self.previous_frame = self.next_frame
         self.previous_points = self.next_points
@@ -717,9 +771,9 @@ class PyrLKOpticalFlowTracker:
                 new_y2 = new_boxes[box_index][3]
                 if self.show:
                     cv2.rectangle(frame_copy, (new_x1, new_y1), (new_x2, new_y2), (0, 0, 255), 4)
-                motion_box_factor = 0.35
-                points_box_factor = 0.25
-                old_box_factor = 0.4
+                motion_box_factor = 0.55
+                points_box_factor = 0.45
+                old_box_factor = 0.0
                 mean_x1 = int(points_box_factor*x_min + old_box_factor*x1 + motion_box_factor*new_x1)
                 mean_y1 = int(points_box_factor*y_min + old_box_factor*y1 + motion_box_factor*new_y1)
                 mean_x2 = int(points_box_factor*x_max + old_box_factor*x2 + motion_box_factor*new_x2)
@@ -773,21 +827,36 @@ class PyrLKOpticalFlowTracker:
         x, y, x2, y2 = matching_boxes[best_match]
         return True, [x, y, x2-x, y2-y]
 
-    def handle_overlapping(self, results, boxes):
-        # if boxes are overlapping we can choose which one is the best match and discard the others
-        return results, boxes
+    def check_overlap(self, box, boxes, ignore_index, overlap_thresh=0.3):
+        x1, y1, w1, h1 = box
+        box_area = w1 * h1
+
+        for i, other_box in enumerate(boxes):
+            if i == ignore_index:
+                continue
+            x2, y2, w2, h2 = other_box
+            other_box_area = w2 * h2
+
+            x_overlap = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
+            y_overlap = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
+            intersect_area = x_overlap * y_overlap
+
+            min_area = min(box_area, other_box_area)
+
+            overlap_ratio = intersect_area / min_area
+
+            if overlap_ratio > overlap_thresh:
+                return False
+
+        return True
+
+
 
 class KalmanFilterTracker:
     def __init__(self, frame, initial_boxes, show=False):
         self.tracker_ready = [0]*len(initial_boxes)
         self.boxes = initial_boxes
         self.tracker_instances = [None]*len(initial_boxes)
-        for i, box in enumerate(initial_boxes):
-            self.reset_tracker_instance(i, box)
-        
-        self.yolo = yolo_model()
-        self.frame = frame
-        self.yolo_box_measure_error_threshold = 0.75 # x means the box matched can be distant at most x of the box size
 
         self.history_length = 36
         self.tracker_histogram_history = []
@@ -797,14 +866,19 @@ class KalmanFilterTracker:
             self.tracker_histogram_history.append([])
             self.tracker_position_history.append([])
             self.tracker_box_size_history.append([])
+
         for i, box in enumerate(initial_boxes):
-            self.update_history(i, box, frame)
+            self.reset_tracker_instance(i, box, frame)
+        
+        self.yolo = yolo_model()
+        self.frame = frame
+        self.yolo_box_measure_error_threshold = 0.75 # x means the box matched can be distant at most x of the box size
         
         self.n_frame_to_reset = 36
 
         self.show = show
     
-    def reset_tracker_instance(self, tracker_index, box):
+    def reset_tracker_instance(self, tracker_index, box, frame):
         kalman = cv2.KalmanFilter(4, 2)
         kalman.measurementMatrix = np.array(
             [[1, 0, 0, 0],
@@ -827,15 +901,22 @@ class KalmanFilterTracker:
         kalman.statePost = np.array([[center_x], [center_y], [0], [0]], np.float32)
         
         self.tracker_instances[tracker_index] = kalman
+
+        self.tracker_box_size_history[tracker_index] = [[w, h]]
+        self.tracker_position_history[tracker_index] = [[center_x, center_y]]
+        self.tracker_histogram_history[tracker_index] = [his.get_histogram(frame, box)]
     
     def update(self, frame):
         frame_copy = frame.copy()
         results = [False]*len(self.tracker_instances)
+        match_results = [False]*len(self.tracker_instances)
+        match_boxes = [None]*len(self.tracker_instances)
 
         yolo_boxes = self.yolo.predict(frame)
 
         for i, kalman in enumerate(self.tracker_instances):
-            if self.tracker_ready[i] < self.n_frame_to_reset:
+            self.tracker_ready[i] += 1
+            if self.tracker_ready[i] <= self.n_frame_to_reset:
                 prediction = kalman.predict()
 
                 pred_x, pred_y = prediction[0][0], prediction[1][0]
@@ -875,18 +956,19 @@ class KalmanFilterTracker:
                 bg = BGSUB.apply(frame)
                 bg = det.preprocess(bg)
                 motion_boxes = det.extract_boxes(bg)
-                result, box = self.match_boxes(i, motion_boxes, frame)
-                if result:
+                match_result, match_box = self.match_boxes(i, motion_boxes, frame)
+                match_results[i] = match_result
+                match_boxes[i] = match_box
+        
+        for i, res in enumerate(match_results):
+            if res:
+                if self.check_overlap(match_boxes[i], self.boxes, ignore_index=i):
                     self.tracker_ready[i] = 0
                     results[i] = True
-                    self.boxes[i] = box
-                    self.reset_tracker_instance(i, box)
+                    self.boxes[i] = match_boxes[i]
+                    self.reset_tracker_instance(i, match_boxes[i], frame)
                     if self.show:
-                        cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (0, 255, 255), 4)
-
-            self.tracker_ready[i] += 1
-
-        results, self.boxes = self.handle_overlapping(results, self.boxes)
+                        cv2.rectangle(frame_copy, (match_boxes[i][0], match_boxes[i][1]), (match_boxes[i][0]+match_boxes[i][2], match_boxes[i][1]+match_boxes[i][3]), (0, 255, 255), 4)
 
         if self.show:
             cv2.imshow('tracker', frame_copy)
@@ -960,6 +1042,25 @@ class KalmanFilterTracker:
         x, y, x2, y2 = matching_boxes[best_match]
         return True, [x, y, x2-x, y2-y]
 
-    def handle_overlapping(self, results, boxes):
-        # if boxes are overlapping we can choose which one is the best match and discard the others
-        return results, boxes
+    def check_overlap(self, box, boxes, ignore_index, overlap_thresh=0.3):
+        x1, y1, w1, h1 = box
+        box_area = w1 * h1
+
+        for i, other_box in enumerate(boxes):
+            if i == ignore_index:
+                continue
+            x2, y2, w2, h2 = other_box
+            other_box_area = w2 * h2
+
+            x_overlap = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
+            y_overlap = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
+            intersect_area = x_overlap * y_overlap
+
+            min_area = min(box_area, other_box_area)
+
+            overlap_ratio = intersect_area / min_area
+
+            if overlap_ratio > overlap_thresh:
+                return False
+
+        return True

@@ -8,7 +8,7 @@ class yolo_model:
         self.yolo = YOLO(model='weights/best.pt')
     
     def predict(self, image):
-        result = self.yolo.predict(image, conf=0.15, imgsz=1280, classes=[1], max_det=12, verbose=False)
+        result = self.yolo.predict(image, conf=0.25, imgsz=1280, classes=[1], max_det=12, verbose=False)
         boxes = result[0].boxes
         bboxes = []
         for i in range(boxes.shape[0]):

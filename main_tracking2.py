@@ -31,7 +31,7 @@ predicted_tracks.append(initial_boxes)
 # KalmanFilterTracker uses cv2.KalmanFilter
 
 # tracker = OpenCVTracker('CSRT', frame, initial_boxes, show)
-# tracker = DenseOpticalFlowTracker('FarnebackOpticalFlow', frame, initial_boxes, points_sampling="gaussian25", show=show)
+# tracker = DenseOpticalFlowTracker('DISOpticalFlow', frame, initial_boxes, points_sampling="gaussian25", show=show)
 # tracker = PyrLKOpticalFlowTracker(frame, initial_boxes, points_sampling="gaussian25", show=show)
 tracker = KalmanFilterTracker(frame, initial_boxes, show)
 
