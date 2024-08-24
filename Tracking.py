@@ -9,7 +9,7 @@ annotations_folder = 'annotations'
 BGSUB = det.BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
 
 class OpenCVTracker:
-    def __init__(self, tracker_name, initial_frame, initial_boxes):
+    def __init__(self, tracker_name, initial_frame, initial_boxes, show=False):
         available_trackers = ["CSRT", "MIL", "KCF", "DaSiamRPN", "GOTURN", "Nano", "Vit"]
         if tracker_name not in available_trackers:
             raise Exception("Tracker not available. Available trackers are " + str(available_trackers))
@@ -44,6 +44,8 @@ class OpenCVTracker:
             self.tracker_box_size_history.append([])
         for i, box in enumerate(initial_boxes):
             self.update_history(i, box, initial_frame)
+        
+        self.show = show
     
     def update(self, frame):
         results = []
@@ -70,15 +72,15 @@ class OpenCVTracker:
                 bg = det.preprocess(bg)
                 motion_boxes = det.extract_boxes(bg)
                 result, box = self.match_boxes(i, motion_boxes, frame)
-                print('Matching box found for tracker ' + str(i) + ': ' + str(box))
                 if result:
                     self.tracker_instances[i].init(frame, box)
                     self.tracker_ready[i] = 0
                     results[i] = True
                     boxes[i] = box
                     frame_copy  = frame.copy()
-                    cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
-                    cv2.imshow('tracker', frame_copy)
+                    if self.show:
+                        cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
+                        cv2.imshow('tracker', frame_copy)
         
         results, boxes = self.handle_overlapping(results, boxes)
         
@@ -172,7 +174,7 @@ class OpenCVTracker:
 
 
 class DenseOpticalFlowTracker:
-    def __init__(self, tracker_name, frame, initial_boxes, points_sampling='gaussian25'):
+    def __init__(self, tracker_name, frame, initial_boxes, points_sampling='gaussian25', show=False):
         available_trackers = ["DISOpticalFlow", "FarnebackOpticalFlow"]
         if tracker_name not in available_trackers:
             raise Exception("Tracker not available. Available trackers are " + str(available_trackers))
@@ -212,6 +214,8 @@ class DenseOpticalFlowTracker:
             self.tracker_box_size_history.append([])
         for i, box in enumerate(initial_boxes):
             self.update_history(i, box, frame)
+
+        self.show = show
     
     def update_history(self, tracker_index, box, frame): # update history for tracker tracker_index with color, position and size
         if len(self.tracker_histogram_history[tracker_index]) == self.history_length:
@@ -290,20 +294,21 @@ class DenseOpticalFlowTracker:
                 bg = det.preprocess(bg)
                 motion_boxes = det.extract_boxes(bg)
                 result, box = self.match_boxes(i, motion_boxes, frame)
-                print('Matching box found for tracker ' + str(i) + ': ' + str(box))
                 if result:
                     self.tracker_ready[i] = 0
                     results[i] = True
                     self.boxes[i] = box
                     for j, point in enumerate(self.points[i]):
                         self.points[i][j] = self.sample_points(self.boxes[i], single_point_resample=True)
-                    cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
+                    if self.show:
+                        cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
         
         results, self.boxes = self.handle_overlapping(results, self.boxes)
 
         self.previous_frame = self.next_frame
         
-        cv2.imshow('tracker', frame_copy)
+        if self.show:
+            cv2.imshow('tracker', frame_copy)
         
         return results, self.boxes
 
@@ -341,11 +346,13 @@ class DenseOpticalFlowTracker:
                     y_max = max(y_max, y)
                     center[0] += x
                     center[1] += y
-                    cv2.circle(frame_copy, (point[0], point[1]), 4, (0, 255, 0), -1)
+                    if self.show:
+                        cv2.circle(frame_copy, (point[0], point[1]), 4, (0, 255, 0), -1)
                 center[0] /= len(self.points[i])
                 center[1] /= len(self.points[i])
-                cv2.circle(frame_copy, (int(center[0]), int(center[1])), 8, (255, 0, 0), -1)
-                cv2.rectangle(frame_copy, (x_min, y_min), (x_max, y_max), (255, 0, 0), 4)
+                if self.show:
+                    cv2.circle(frame_copy, (int(center[0]), int(center[1])), 8, (255, 0, 0), -1)
+                    cv2.rectangle(frame_copy, (x_min, y_min), (x_max, y_max), (255, 0, 0), 4)
 
                 # find the motion detector box with the center closest to the edges of the box
                 # but not any box is fine, it must contain the center of the points found
@@ -379,7 +386,8 @@ class DenseOpticalFlowTracker:
                     new_y1 = new_boxes[box_index][1]
                     new_x2 = new_boxes[box_index][2]
                     new_y2 = new_boxes[box_index][3]
-                    cv2.rectangle(frame_copy, (new_x1, new_y1), (new_x2, new_y2), (0, 0, 255), 4)
+                    if self.show:
+                        cv2.rectangle(frame_copy, (new_x1, new_y1), (new_x2, new_y2), (0, 0, 255), 4)
                     motion_box_factor = 0.35
                     points_box_factor = 0.25
                     old_box_factor = 0.4
@@ -387,7 +395,8 @@ class DenseOpticalFlowTracker:
                     mean_y1 = int(points_box_factor*y_min + old_box_factor*y1 + motion_box_factor*new_y1)
                     mean_x2 = int(points_box_factor*x_max + old_box_factor*x2 + motion_box_factor*new_x2)
                     mean_y2 = int(points_box_factor*y_max + old_box_factor*y2 + motion_box_factor*new_y2)
-                    cv2.rectangle(frame_copy, (mean_x1, mean_y1), (mean_x2, mean_y2), (0, 255, 0), 4)
+                    if self.show:
+                        cv2.rectangle(frame_copy, (mean_x1, mean_y1), (mean_x2, mean_y2), (0, 255, 0), 4)
 
                     self.boxes[i] = [mean_x1, mean_y1, mean_x2-mean_x1, mean_y2-mean_y1]
                 
@@ -475,7 +484,7 @@ class DenseOpticalFlowTracker:
 
 
 class PyrLKOpticalFlowTracker:
-    def __init__(self, frame, initial_boxes, points_sampling='gaussian25'):
+    def __init__(self, frame, initial_boxes, points_sampling='gaussian25', show=False):
         available_points_sampling = ['gaussian9', 'gaussian16', 'gaussian25', 'center', 'random9', 'random16', 'random25']
         if points_sampling not in available_points_sampling:
             raise Exception("Points sampling not available. Available points sampling are " + str(available_points_sampling))
@@ -509,6 +518,8 @@ class PyrLKOpticalFlowTracker:
             self.tracker_box_size_history.append([])
         for i, box in enumerate(initial_boxes):
             self.update_history(i, box, frame)
+        
+        self.show = show
 
     def update_history(self, tracker_index, box, frame): # update history for tracker tracker_index with color, position and size
         if len(self.tracker_histogram_history[tracker_index]) == self.history_length:
@@ -590,21 +601,22 @@ class PyrLKOpticalFlowTracker:
                 bg = det.preprocess(bg)
                 motion_boxes = det.extract_boxes(bg)
                 result, box = self.match_boxes(i, motion_boxes, frame)
-                print('Matching box found for tracker ' + str(i) + ': ' + str(box))
                 if result:
                     self.tracker_ready[i] = 0
                     results[i] = True
                     self.boxes[i] = box
                     for j, point in enumerate(self.next_points[i]):
                         self.next_points[i][j] = self.sample_points(self.boxes[i], single_point_resample=True)
-                    cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
+                    if self.show:
+                        cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
         
         results, self.boxes = self.handle_overlapping(results, self.boxes)
 
         self.previous_frame = self.next_frame
         self.previous_points = self.next_points
         
-        cv2.imshow('tracker', frame_copy)
+        if self.show:
+            cv2.imshow('tracker', frame_copy)
         
         return results, self.boxes
 
@@ -663,11 +675,13 @@ class PyrLKOpticalFlowTracker:
                     y_max = max(y_max, y)
                     center[0] += x
                     center[1] += y
-                    cv2.circle(frame_copy, (x, y), 4, (0, 255, 0), -1)
+                    if self.show:
+                        cv2.circle(frame_copy, (x, y), 4, (0, 255, 0), -1)
             center[0] /= len_valid_points
             center[1] /= len_valid_points
-            cv2.circle(frame_copy, (int(center[0]), int(center[1])), 8, (255, 0, 0), -1)
-            cv2.rectangle(frame_copy, (x_min, y_min), (x_max, y_max), (255, 0, 0), 4)
+            if self.show:
+                cv2.circle(frame_copy, (int(center[0]), int(center[1])), 8, (255, 0, 0), -1)
+                cv2.rectangle(frame_copy, (x_min, y_min), (x_max, y_max), (255, 0, 0), 4)
 
             # find the motion detector box with the center closest to the edges of the box
             # but not any box is fine, it must contain the center of the points found
@@ -701,7 +715,8 @@ class PyrLKOpticalFlowTracker:
                 new_y1 = new_boxes[box_index][1]
                 new_x2 = new_boxes[box_index][2]
                 new_y2 = new_boxes[box_index][3]
-                cv2.rectangle(frame_copy, (new_x1, new_y1), (new_x2, new_y2), (0, 0, 255), 4)
+                if self.show:
+                    cv2.rectangle(frame_copy, (new_x1, new_y1), (new_x2, new_y2), (0, 0, 255), 4)
                 motion_box_factor = 0.35
                 points_box_factor = 0.25
                 old_box_factor = 0.4
@@ -709,7 +724,8 @@ class PyrLKOpticalFlowTracker:
                 mean_y1 = int(points_box_factor*y_min + old_box_factor*y1 + motion_box_factor*new_y1)
                 mean_x2 = int(points_box_factor*x_max + old_box_factor*x2 + motion_box_factor*new_x2)
                 mean_y2 = int(points_box_factor*y_max + old_box_factor*y2 + motion_box_factor*new_y2)
-                cv2.rectangle(frame_copy, (mean_x1, mean_y1), (mean_x2, mean_y2), (0, 255, 0), 4)
+                if self.show:
+                    cv2.rectangle(frame_copy, (mean_x1, mean_y1), (mean_x2, mean_y2), (0, 255, 0), 4)
 
                 self.boxes[index] = [mean_x1, mean_y1, mean_x2-mean_x1, mean_y2-mean_y1]
             
@@ -762,7 +778,7 @@ class PyrLKOpticalFlowTracker:
         return results, boxes
 
 class KalmanFilterTracker:
-    def __init__(self, frame, initial_boxes):
+    def __init__(self, frame, initial_boxes, show=False):
         self.tracker_ready = [0]*len(initial_boxes)
         self.boxes = initial_boxes
         self.tracker_instances = [None]*len(initial_boxes)
@@ -771,7 +787,7 @@ class KalmanFilterTracker:
         
         self.yolo = yolo_model()
         self.frame = frame
-        self.yolo_box_measure_error_threshold = 1.0 # x means the box matched can be distant at most x of the box size
+        self.yolo_box_measure_error_threshold = 0.75 # x means the box matched can be distant at most x of the box size
 
         self.history_length = 36
         self.tracker_histogram_history = []
@@ -785,6 +801,8 @@ class KalmanFilterTracker:
             self.update_history(i, box, frame)
         
         self.n_frame_to_reset = 36
+
+        self.show = show
     
     def reset_tracker_instance(self, tracker_index, box):
         kalman = cv2.KalmanFilter(4, 2)
@@ -821,7 +839,8 @@ class KalmanFilterTracker:
                 prediction = kalman.predict()
 
                 pred_x, pred_y = prediction[0][0], prediction[1][0]
-                cv2.circle(frame_copy, (int(pred_x), int(pred_y)), 4, (255, 0, 0), -1)
+                if self.show:
+                    cv2.circle(frame_copy, (int(pred_x), int(pred_y)), 4, (255, 0, 0), -1)
 
                 res, obs, box = self.get_observation(yolo_boxes, (pred_x, pred_y), self.boxes[i])
 
@@ -835,7 +854,8 @@ class KalmanFilterTracker:
 
                     self.update_history(i, box, frame)
 
-                    cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
+                    if self.show:
+                        cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (255, 0, 0), 4)
                 else:
                     # skip the correction step
                     
@@ -849,7 +869,8 @@ class KalmanFilterTracker:
                     box = [new_x, new_y, prev_w, prev_h]
                     self.boxes[i] = box
 
-                    cv2.rectangle(frame_copy, (new_x, new_y), (new_x+prev_w, new_y+prev_h), (0, 0, 255), 4)
+                    if self.show:
+                        cv2.rectangle(frame_copy, (new_x, new_y), (new_x+prev_w, new_y+prev_h), (0, 0, 255), 4)
             else:
                 bg = BGSUB.apply(frame)
                 bg = det.preprocess(bg)
@@ -860,12 +881,15 @@ class KalmanFilterTracker:
                     results[i] = True
                     self.boxes[i] = box
                     self.reset_tracker_instance(i, box)
-                    print('Matching box found for tracker ' + str(i) + ': ' + str(box))
-                    cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (0, 255, 255), 4)
+                    if self.show:
+                        cv2.rectangle(frame_copy, (box[0], box[1]), (box[0]+box[2], box[1]+box[3]), (0, 255, 255), 4)
 
             self.tracker_ready[i] += 1
 
-        cv2.imshow('tracker', frame_copy)
+        results, self.boxes = self.handle_overlapping(results, self.boxes)
+
+        if self.show:
+            cv2.imshow('tracker', frame_copy)
         return results, self.boxes
     
     def update_history(self, tracker_index, box, frame):
@@ -935,3 +959,7 @@ class KalmanFilterTracker:
         best_match = np.argmin(match_score)
         x, y, x2, y2 = matching_boxes[best_match]
         return True, [x, y, x2-x, y2-y]
+
+    def handle_overlapping(self, results, boxes):
+        # if boxes are overlapping we can choose which one is the best match and discard the others
+        return results, boxes
