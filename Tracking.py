@@ -186,8 +186,11 @@ class OpenCVTracker:
             intersect_area = x_overlap * y_overlap
 
             min_area = min(box_area, other_box_area)
-
-            overlap_ratio = intersect_area / min_area
+            
+            try:
+                overlap_ratio = intersect_area / min_area
+            except ZeroDivisionError:
+                overlap_ratio = 0
 
             if overlap_ratio > overlap_thresh:
                 return False
@@ -523,7 +526,10 @@ class DenseOpticalFlowTracker:
 
             min_area = min(box_area, other_box_area)
 
-            overlap_ratio = intersect_area / min_area
+            try:
+                overlap_ratio = intersect_area / min_area
+            except ZeroDivisionError:
+                overlap_ratio = 0
 
             if overlap_ratio > overlap_thresh:
                 return False
@@ -843,7 +849,10 @@ class PyrLKOpticalFlowTracker:
 
             min_area = min(box_area, other_box_area)
 
-            overlap_ratio = intersect_area / min_area
+            try:
+                overlap_ratio = intersect_area / min_area
+            except ZeroDivisionError:
+                overlap_ratio = 0
 
             if overlap_ratio > overlap_thresh:
                 return False
@@ -1058,7 +1067,10 @@ class KalmanFilterTracker:
 
             min_area = min(box_area, other_box_area)
 
-            overlap_ratio = intersect_area / min_area
+            try:
+                overlap_ratio = intersect_area / min_area
+            except ZeroDivisionError:
+                overlap_ratio = 0
 
             if overlap_ratio > overlap_thresh:
                 return False
