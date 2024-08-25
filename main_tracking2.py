@@ -30,15 +30,15 @@ for i in range(len(annotation)):
 predicted_tracks.append(initial_boxes)
 predicted_results.append([True]*len(initial_boxes))
 
-# available trackers for OpenCVTracker: ["CSRT", "MIL", "KCF", "DaSiamRPN", "GOTURN", "Nano", "Vit"] GOTURN is really really slow
+# available trackers for OpenCVTracker: ["CSRT", "MIL", "DaSiamRPN", "Nano", "Vit"] GOTURN is really really slow
 # available trackers for DenseOpticalFlowTracker: ["DISOpticalFlow", "FarnebackOpticalFlow"]-
 # PyrLKOpticalFlowTracker uses cv2.SparsePyrLKOpticalFlow
 # KalmanFilterTracker uses cv2.KalmanFilter
 
-#tracker = OpenCVTracker('CSRT', frame, initial_boxes, show)
+tracker = OpenCVTracker('KCF', frame, initial_boxes, show)
 # tracker = DenseOpticalFlowTracker('DISOpticalFlow', frame, initial_boxes, points_sampling="gaussian25", show=show)
 #tracker = PyrLKOpticalFlowTracker(frame, initial_boxes, points_sampling="gaussian25", show=show)
-tracker = KalmanFilterTracker(frame, initial_boxes, show)
+# tracker = KalmanFilterTracker(frame, initial_boxes, show)
 
 progress_bar = tqdm.tqdm(total=int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
 progress_bar.update(1)

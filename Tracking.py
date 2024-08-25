@@ -10,20 +10,16 @@ BGSUB = det.BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
 
 class OpenCVTracker:
     def __init__(self, tracker_name, initial_frame, initial_boxes, show=False):
-        available_trackers = ["CSRT", "MIL", "KCF", "DaSiamRPN", "GOTURN", "Nano", "Vit"]
+        available_trackers = ["CSRT", "MIL", "DaSiamRPN", "Nano", "Vit"]
         if tracker_name not in available_trackers:
             raise Exception("Tracker not available. Available trackers are " + str(available_trackers))
 
         if tracker_name == "CSRT":
             self.tracker = cv2.TrackerCSRT
         elif tracker_name == "MIL":
-            self.racker = cv2.TrackerMIL
-        elif tracker_name == "KCF":
-            self.tracker = cv2.TrackerKCF
+            self.tracker = cv2.TrackerMIL
         elif tracker_name == "DaSiamRPN":
             self.tracker = cv2.TrackerDaSiamRPN
-        elif tracker_name == "GOTURN":
-            self.tracker = cv2.TrackerGOTURN
         elif tracker_name == "Nano":
             self.tracker = cv2.TrackerNano
         elif tracker_name == "Vit":

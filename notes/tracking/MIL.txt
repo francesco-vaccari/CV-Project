@@ -1,0 +1,8 @@
+Sum of false positives: 9557
+Sum of false negatives: 3271
+Average Precision:  0.22806747366382926
+Average Recall:  0.538924605365798
+Average F1:  0.2855251933961918
+ID Switches:  110
+MOTA:  0.4046567274065893
+MOTP:  0.47040007480836366
