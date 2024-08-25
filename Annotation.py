@@ -31,7 +31,7 @@ class Annotation:
                     for line in lines:
                         frame, x1, y1, x2, y2 = line.strip().split(',')
                         frame = int(frame)-1
-                        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                        x1, y1, x2, y2 = min(int(x1), int(x2)), min(int(y1), int(y2)), max(int(x1), int(x2)), max(int(y1), int(y2))
                         self.annotations[int(team)-1][int(player)-1].append(FrameAnnotation(frame, team, player, x1, y1, x2, y2)) # frame number is the same as the index
             except Exception as e:
                 # the annotation is for the ball, not for a player
@@ -270,3 +270,105 @@ class Annotation:
 
         average_displacement_error = total_displacement_error / total_points if total_points > 0 else float('inf')
         return average_displacement_error
+
+    def evaluate_tracking2(self, results, boxes, order, IoU_threshold = 0.2):
+
+        n_frames = []
+        
+        tps = []
+        fps = []
+        fns = []
+        id_switches = []
+        n_annotations = []
+        
+        ids = []
+        for i in range(len(results[0])):
+            ids.append(i) # index and value are the same
+
+
+        for i in range(len(results)):
+
+            frame_ann = self.get_annotation(i)
+
+            frame_tp = 0
+            frame_fp = 0
+            frame_fn = 0
+
+            frame_n_annotations = 0
+            frame_id_switches = 0
+
+            matched_ious = []
+            n_matches = 0
+            
+
+            for j in range(len(results[i])):
+
+                pred_result = results[i][j]
+                pred_box = [boxes[i][j][0], boxes[i][j][1], boxes[i][j][2] + boxes[i][j][0], boxes[i][j][3] + boxes[i][j][1]]
+                ann_box = [frame_ann[j].x1, frame_ann[j].y1, frame_ann[j].x2, frame_ann[j].y2]
+
+                if ann_box == [0, 0, 0, 0]: # player annotated as not in frame
+                    frame_n_annotations += 1
+                    if pred_result:
+                        frame_fp += 1
+                    else:
+                        frame_tp += 1
+                else: # player annotated in frame
+                    frame_n_annotations += 1
+                    if not pred_result:
+                        frame_fn += 1 # tracker did not find the player
+                    else:
+                        iou = self.calculate_iou(pred_box, ann_box)
+                        if iou > IoU_threshold: # tracker found the correct player
+                            frame_tp += 1
+                            matched_ious.append(iou)
+                            n_matches += 1
+                            if j != ids[j]: # the player found id is different than the last one
+                                frame_id_switches += 1
+                            ids[j] = j
+                        else:
+                            for k in range(len(frame_ann)):
+                                other_box = [frame_ann[k].x1, frame_ann[k].y1, frame_ann[k].x2, frame_ann[k].y2]
+                                iou = self.calculate_iou(pred_box, other_box)
+                                if iou > IoU_threshold: # tracker found another player instead of the correct one
+                                    frame_fp += 1
+                                    if k != ids[j]: # the player found id is different than the last one
+                                        frame_id_switches += 1
+                                    ids[j] = k
+                                    break
+            
+            n_frames.append(i)
+            tps.append(frame_tp)
+            fps.append(frame_fp)
+            fns.append(frame_fn)
+            n_annotations.append(frame_n_annotations)
+            id_switches.append(frame_id_switches)
+        
+
+        precisions = []
+        recalls = []
+        f1s = []
+        for i in range(len(n_frames)):
+            try:
+                precisions.append(tps[i] / (tps[i] + fps[i]))
+            except ZeroDivisionError:
+                precisions.append(0)
+            try:
+                recalls.append(tps[i] / (tps[i] + fns[i]))
+            except ZeroDivisionError:
+                recalls.append(0)
+            try:
+                f1s.append(2 * (precisions[i] * recalls[i]) / (precisions[i] + recalls[i]))
+            except ZeroDivisionError:
+                f1s.append(0)
+        
+        mean_precision = np.mean(precisions)
+        mean_recall = np.mean(recalls)
+        mean_f1 = np.mean(f1s)
+        total_id_switches = sum(id_switches)
+        print(f"Sum of false positives: {sum(fps)}")
+        print(f"Sum of false negatives: {sum(fns)}")
+        mota = 1 - (sum(fps) + sum(fns) + total_id_switches) / sum(n_annotations)
+        motp = sum(matched_ious) / n_matches if n_matches > 0 else 0
+
+        return mean_precision, mean_recall, mean_f1, total_id_switches, mota, motp
