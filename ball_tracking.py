@@ -9,8 +9,12 @@ video = 'videos/refined2_short.mp4'
 annotation = 'annotations_ball.label'
 
 max_yolo_imgsz = None
+
 # yolo = YOLO("weights/best.pt")
+# yolo_class = 0
+
 yolo = YOLO('yolov8x')
+yolo_class = 32
 
 decrease_size_factor = 0.8
 increase_size_factor = 1.2
@@ -38,7 +42,7 @@ def get_next_annotation():
 
 def get_yolo_predictions(frame, size):
     image = Image.fromarray(frame)
-    results = yolo.predict(image, conf=0.01, classes=[32], imgsz=size)[0]
+    results = yolo.predict(image, conf=0.01, classes=[yolo_class], imgsz=size)[0]
     conf = results.boxes.conf.tolist()
     boxes = [[int(x1), int(y1), int(x2), int(y2)] for x1, y1, x2, y2 in results.boxes.xyxy.tolist()]
     return boxes, conf
