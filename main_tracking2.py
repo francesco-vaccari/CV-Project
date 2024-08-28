@@ -30,7 +30,7 @@ for i in range(len(annotation)):
 predicted_tracks.append(initial_boxes)
 predicted_results.append([True]*len(initial_boxes))
 
-# available trackers for OpenCVTracker: ["CSRT", "MIL", "DaSiamRPN", "Nano", "Vit"] GOTURN is really really slow
+# available trackers for OpenCVTracker: ["CSRT", "MIL", "DaSiamRPN", "Nano", "Vit"]
 # available trackers for DenseOpticalFlowTracker: ["DISOpticalFlow", "FarnebackOpticalFlow"]-
 # PyrLKOpticalFlowTracker uses cv2.SparsePyrLKOpticalFlow
 # KalmanFilterTracker uses cv2.KalmanFilter
