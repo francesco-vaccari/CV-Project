@@ -56,6 +56,7 @@ def histogram_to_features(histograms):
 
     for i, col in enumerate(colors):
         values = []
+        #cv.normalize(histograms[i], histograms[i], alpha=0, beta=1, norm_type=cv.NORM_MINMAX)
         for j,val in enumerate(histograms[i]):
             values.append(val)
         features.append(values)
@@ -65,13 +66,10 @@ def histogram_to_features(histograms):
 
     return toSend
 
-def sanatise_histogram(histogram, threshold = 20):
+def sanatise_histogram(histogram):
     for c, col in enumerate(colors):
         histogram[c][0] = 0
 
-        for i, value in enumerate(histogram[c]):
-            if value < threshold:
-                value = 0
         cv.normalize(histogram[c], histogram[c], alpha=0, beta=1, norm_type=cv.NORM_MINMAX)
 
     return histogram

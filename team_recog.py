@@ -13,7 +13,7 @@ colors = ('b', 'g', 'r')
 criteria = (cv.TERM_CRITERIA_EPS, 10, 1)
 flags = cv.KMEANS_RANDOM_CENTERS
 
-detector = det.BackgroundSubtractor(bg_path='background_image.jpg', threshold=70)
+detector = det.BackgroundSubtractor(bg_path='background_image.jpg', threshold=50)
 
 cam = cv.VideoCapture(video)
 annotations = ann.Annotation(annotations_folder)
@@ -40,7 +40,7 @@ correctly_labeled_onlyTeamsSameLabel = 0
 wrongly_labeled_onlyTeamsSameLabel = 0
 
 log_folder = "notes/"
-log_name = "teamDetect_sanitizeThresh20_bgsubThresh70_noPreprocess"
+log_name = "teamDetect_noSanitize_bgsubThresh50_noPreprocess"
 log = open(log_folder+log_name+".txt", "w")
 
 while True:
@@ -50,7 +50,6 @@ while True:
     cv.imshow('Frame', frame)
 
     mask = detector.apply(frame)
-    #mask = det.preprocess(mask)
     masked_frame = cv.bitwise_and(frame, frame, mask=mask)
 
     cv.imshow("mask", masked_frame)
@@ -65,7 +64,7 @@ while True:
             x, y, h, w = box.x1, box.y1, box.x2, box.y2
 
             histr = his.get_histogram(masked_frame, box)
-            histr = his.sanatise_histogram(histr, 20)
+            histr = his.sanatise_histogram(histr)
 
             feature = his.histogram_to_features(histr)
             selected_histr.append(histr)
@@ -155,14 +154,17 @@ while True:
     key = cv.waitKey(1) & 0xFF
 
     if key == ord("q") or n_frame == 1810:
-        avg_compactness = avg_compactness / n_frame
-        correctly_labeled_withTeamsSameLabel = correctly_labeled_withTeamsSameLabel / n_frame
-        wrongly_labeled_withTeamsSameLabel = wrongly_labeled_withTeamsSameLabel / n_frame
-        correctly_labeled_onlyTeamsSameLabel = correctly_labeled_onlyTeamsSameLabel / n_frames_TeamsHaveSameLabel
-        wrongly_labeled_onlyTeamsSameLabel = wrongly_labeled_onlyTeamsSameLabel / n_frames_TeamsHaveSameLabel
+        if(n_frame!=0):
+            avg_compactness = avg_compactness / n_frame
+            correctly_labeled_withTeamsSameLabel = correctly_labeled_withTeamsSameLabel / n_frame
+            wrongly_labeled_withTeamsSameLabel = wrongly_labeled_withTeamsSameLabel / n_frame
+        if(n_frames_TeamsHaveSameLabel !=0):
+            correctly_labeled_onlyTeamsSameLabel = correctly_labeled_onlyTeamsSameLabel / n_frames_TeamsHaveSameLabel
+            wrongly_labeled_onlyTeamsSameLabel = wrongly_labeled_onlyTeamsSameLabel / n_frames_TeamsHaveSameLabel
         n_frames_noSameLabels = n_frame - n_frames_TeamsHaveSameLabel
-        correctly_labeled = correctly_labeled / n_frames_noSameLabels
-        wrongly_labeled = wrongly_labeled / n_frames_noSameLabels
+        if(n_frames_noSameLabels!=0):
+            correctly_labeled = correctly_labeled / n_frames_noSameLabels
+            wrongly_labeled = wrongly_labeled / n_frames_noSameLabels
         log.write("Average compactness of clusters:"+str(avg_compactness)+"\n")
         log.write("----------------------------------------------------------------\n")
         log.write("Total number of frames analysed: "+str(n_frame)+"\n")
@@ -188,9 +190,9 @@ while True:
         ax.scatter(team2[:, 0], team2[:, 1], team2[:,2], c='r')
         ax.scatter(centers[:, 0], centers[:, 1], centers[:,2], s=80, c='y', marker='s')
 
-        ax.set_xlabel('X Label')
-        ax.set_ylabel('Y Label')
-        ax.set_zlabel('Z Label')
+        ax.set_xlabel('Blue')
+        ax.set_ylabel('Green')
+        ax.set_zlabel('Red')
 
         plt.show()
 
@@ -204,7 +206,7 @@ while True:
 
         plt.show()
 
-        histr = his.sanatise_histogram(histr)
+        histr = his.sanatise_histogram(histr, 0.5)
         for i, col in enumerate(colors):
             plt.plot(histr[i], color=col)
             plt.xlim([0, 256])

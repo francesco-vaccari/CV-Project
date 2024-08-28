@@ -1,0 +1,13 @@
+Average compactness of clusters:0.0
+----------------------------------------------------------------
+Total number of frames analysed: 1810
+Average number of correctly assigned labels :11.0
+Average number of wrongly assigned labels :1.0
+----------------------------------------------------------------
+Numer of Frames where the teams have the same mode labels :1810
+Average number of correctly assigned labels :11.0
+Average number of wrongly assigned labels :1.0
+----------------------------------------------------------------
+Number of Frames where the teams have different mode labels : 0
+Average number of correctly assigned labels :0
+Average number of wrongly assigned labels :0
