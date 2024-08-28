@@ -31,7 +31,7 @@ predicted_tracks.append(initial_boxes)
 predicted_results.append([True]*len(initial_boxes))
 
 # available trackers for OpenCVTracker: ["CSRT", "MIL", "DaSiamRPN", "Nano", "Vit"]
-# available trackers for DenseOpticalFlowTracker: ["DISOpticalFlow", "FarnebackOpticalFlow"]-
+# available trackers for DenseOpticalFlowTracker: ["DISOpticalFlow", "FarnebackOpticalFlow"]
 # PyrLKOpticalFlowTracker uses cv2.SparsePyrLKOpticalFlow
 # KalmanFilterTracker uses cv2.KalmanFilter
 
