@@ -2,6 +2,7 @@
 Group: Francesco Vaccari, Michele Minniti, Leonardo Giaretta
 
 Project 1: Top view stitching and tracking (tracking and geometry)
+
 Goal:
  1) Create a top-view stitch of the whole court
  2) Apply detection algorithm on top-view images and evaluate the performances
